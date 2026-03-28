@@ -1,0 +1,14 @@
+CREATE SEQUENCE IF NOT EXISTS seq_report_no START 1;
+
+ALTER TABLE reports
+  ADD COLUMN IF NOT EXISTS report_no TEXT;
+
+ALTER TABLE reports
+  ADD COLUMN IF NOT EXISTS sent_email BOOLEAN NOT NULL DEFAULT false;
+
+ALTER TABLE reports
+  ADD COLUMN IF NOT EXISTS sent_whatsapp BOOLEAN NOT NULL DEFAULT false;
+
+INSERT INTO _migrations(filename)
+VALUES('002_add_report_features.sql')
+ON CONFLICT(filename) DO NOTHING;

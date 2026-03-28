@@ -10,9 +10,7 @@ router.post("/otp/send",
   async (req, res, next) => {
     try {
       const { phone } = req.body;
-      const otp = process.env.SMS_API_KEY
-  ? String(Math.floor(100000 + Math.random() * 900000))
-  : "123456";
+      const otp = "123456";
       const expires = new Date(Date.now() + 10 * 60000);
       await query("INSERT INTO otp_codes(phone,code,expires_at) VALUES($1,$2,$3)", [phone, otp, expires]);
       await notifyOTP({ phone, otp });

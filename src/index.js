@@ -4,6 +4,7 @@ const cors = require("cors");
 const helmet = require("helmet");
 const rateLimit = require("express-rate-limit");
 const logger = require("./utils/logger");
+const path = require("path");
 const { testConnection } = require("./db");
 const errorHandler = require("./middleware/errorHandler");
 

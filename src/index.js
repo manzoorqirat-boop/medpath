@@ -17,10 +17,10 @@ app.use(express.urlencoded({ extended: true }));
 app.set("trust proxy", 1);
 app.use(rateLimit({ windowMs: 900000, max: 300 }));
 
-app.use(express.static(require("path").join(__dirname, "..public")));
+app.use(express.static(path.join(process.cwd(), "public")));
 
 app.get("/", function(req, res) {
-  res.sendFile(require("path").join(__dirname, "../public/index.html"));
+  res.sendFile(path.join(process.cwd(), "public", "index.html"));
 });
 
 app.get("/health", async function(req, res) {

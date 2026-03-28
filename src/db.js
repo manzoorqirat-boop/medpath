@@ -2,7 +2,7 @@ const { Pool } = require("pg");
 const logger   = require("./utils/logger");
 
 const pool = new Pool({
-  connectionString: process.env.DATABASE_URL || "postgresql://postgres:lkyPnnqpIMbAViDTXmVUEJSclBOlGydv@gondola.proxy.rlwy.net:32399/railway",
+  connectionString: process.env.DB_URL || "postgresql://postgres:lkyPnnqpIMbAViDTXmVUEJSclBOlGydv@gondola.proxy.rlwy.net:32399/railway",
   ssl: { rejectUnauthorized: false },
   max: 20,
   idleTimeoutMillis: 30000,

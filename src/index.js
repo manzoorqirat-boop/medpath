@@ -16,8 +16,10 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(rateLimit({ windowMs: 900000, max: 300 }));
 
+app.use(express.static(require("path").join(__dirname, "../public")));
+
 app.get("/", function(req, res) {
-  res.json({ message: "MedPath API is running" });
+  res.sendFile(require("path").join(__dirname, "../public/index.html"));
 });
 
 app.get("/health", async function(req, res) {

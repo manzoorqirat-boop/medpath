@@ -562,7 +562,145 @@ function AdminApp({user,onLogout}) {
     );
   }
 
-  const pages={dashboard:h(Dashboard),samples:h(Samples),patients:h(Patients),billing:h(Billing)};
+  function ManageTests() {
+    const [tests,setTests]=useState([]);
+    const [loading,setLoading]=useState(true);
+    const [editing,setEditing]=useState(null);
+    const [form,setForm]=useState({name:"",category:"",price:"",turnaround_hrs:"",fasting_required:false});
+    const [adding,setAdding]=useState(false);
+
+    useEffect(()=>{
+      api("GET","/api/tests").then(d=>{
+        if(d.tests) setTests(d.tests);
+        setLoading(false);
+      });
+    },[]);
+
+    async function saveEdit(id) {
+      const data = await api("PUT","/api/tests/"+id,{
+        name:form.name,
+        category:form.category,
+        price:Number(form.price),
+        turnaround_hrs:Number(form.turnaround_hrs),
+        fasting_required:form.fasting_required,
+        is_active:true
+      });
+      if(data.test) {
+        setTests(prev=>prev.map(t=>t.id===id?data.test:t));
+        setEditing(null);
+        alert("Test updated!");
+      } else {
+        alert("Update failed: "+JSON.stringify(data.error));
+      }
+    }
+
+    async function toggleActive(test) {
+      const data = await api("PUT","/api/tests/"+test.id,{
+        name:test.name,
+        category:test.category,
+        price:Number(test.price),
+        turnaround_hrs:Number(test.turnaround_hrs),
+        fasting_required:test.fasting_required,
+        is_active:!test.is_active
+      });
+      if(data.test) setTests(prev=>prev.map(t=>t.id===test.id?data.test:t));
+    }
+
+    async function addTest() {
+      const data = await api("POST","/api/tests",{
+        code:form.name.substring(0,6).toUpperCase().replace(/\s/g,""),
+        name:form.name,
+        category:form.category,
+        price:Number(form.price),
+        turnaround_hrs:Number(form.turnaround_hrs)||6,
+        fasting_required:form.fasting_required
+      });
+      if(data.test) {
+        setTests(prev=>[...prev,data.test]);
+        setAdding(false);
+        setForm({name:"",category:"",price:"",turnaround_hrs:"",fasting_required:false});
+        alert("Test added!");
+      } else {
+        alert("Failed: "+JSON.stringify(data.error));
+      }
+    }
+
+    const inp={width:"100%",padding:"8px 11px",borderRadius:8,border:"1.5px solid #D4DCE8",fontSize:13,outline:"none",fontFamily:"inherit",boxSizing:"border-box",marginBottom:8};
+
+    return h("div",null,
+      h("div",{style:{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:20}},
+        h("h2",{style:{color:"#0A1628"}},"Manage Tests"),
+        h("button",{onClick:()=>{setAdding(!adding);setForm({name:"",category:"",price:"",turnaround_hrs:"6",fasting_required:false});},className:"btn",style:{background:"#0D8A89",color:"#fff",padding:"8px 18px",fontSize:13}},adding?"Cancel":"+ Add New Test")
+      ),
+
+      adding&&h("div",{className:"card",style:{padding:22,marginBottom:20,border:"2px solid #0D8A89"}},
+        h("h3",{style:{margin:"0 0 14px",color:"#0D8A89"}},"Add New Test"),
+        h("input",{value:form.name,onChange:e=>setForm({...form,name:e.target.value}),placeholder:"Test Name *",style:inp}),
+        h("input",{value:form.category,onChange:e=>setForm({...form,category:e.target.value}),placeholder:"Category (e.g. Hematology) *",style:inp}),
+        h("input",{type:"number",value:form.price,onChange:e=>setForm({...form,price:e.target.value}),placeholder:"Price (₹) *",style:inp}),
+        h("input",{type:"number",value:form.turnaround_hrs,onChange:e=>setForm({...form,turnaround_hrs:e.target.value}),placeholder:"Turnaround Hours",style:inp}),
+        h("label",{style:{display:"flex",alignItems:"center",gap:8,marginBottom:12,fontSize:13,color:"#4A5D72",cursor:"pointer"}},
+          h("input",{type:"checkbox",checked:form.fasting_required,onChange:e=>setForm({...form,fasting_required:e.target.checked}),style:{width:16,height:16}}),
+          "Fasting Required"
+        ),
+        h("button",{onClick:addTest,className:"btn",style:{background:"#D4A843",color:"#0A1628",padding:"9px 20px"}},"Save Test ✓")
+      ),
+
+      loading&&h("div",{className:"loading"},"⏳ Loading tests..."),
+      h("div",{className:"card",style:{overflow:"hidden"}},
+        h("table",{style:{width:"100%",borderCollapse:"collapse"}},
+          h("thead",null,
+            h("tr",{style:{background:"#0A1628"}},
+              ["Test Name","Category","Price","TAT","Fasting","Status","Actions"].map(col=>
+                h("th",{key:col,style:{color:"#fff",fontSize:11,fontWeight:700,padding:"10px 12px",textAlign:"left"}},col)
+              )
+            )
+          ),
+          h("tbody",null,
+            tests.map((t,i)=>
+              editing===t.id
+              ? h("tr",{key:t.id,style:{background:"#E5F7F7"}},
+                  h("td",{style:{padding:"8px 12px"},colSpan:7},
+                    h("div",{style:{display:"grid",gridTemplateColumns:"2fr 1fr 1fr 1fr",gap:8,marginBottom:8}},
+                      h("input",{value:form.name,onChange:e=>setForm({...form,name:e.target.value}),placeholder:"Test Name",style:{...inp,marginBottom:0}}),
+                      h("input",{value:form.category,onChange:e=>setForm({...form,category:e.target.value}),placeholder:"Category",style:{...inp,marginBottom:0}}),
+                      h("input",{type:"number",value:form.price,onChange:e=>setForm({...form,price:e.target.value}),placeholder:"Price",style:{...inp,marginBottom:0}}),
+                      h("input",{type:"number",value:form.turnaround_hrs,onChange:e=>setForm({...form,turnaround_hrs:e.target.value}),placeholder:"Hours",style:{...inp,marginBottom:0}})
+                    ),
+                    h("div",{style:{display:"flex",gap:8,alignItems:"center"}},
+                      h("label",{style:{display:"flex",alignItems:"center",gap:6,fontSize:12,cursor:"pointer"}},
+                        h("input",{type:"checkbox",checked:form.fasting_required,onChange:e=>setForm({...form,fasting_required:e.target.checked})}),
+                        "Fasting"
+                      ),
+                      h("button",{onClick:()=>saveEdit(t.id),className:"btn",style:{background:"#198754",color:"#fff",padding:"6px 14px",fontSize:12}},"Save ✓"),
+                      h("button",{onClick:()=>setEditing(null),className:"btn",style:{background:"#EDF1F5",color:"#4A5D72",padding:"6px 14px",fontSize:12}},"Cancel")
+                    )
+                  )
+                )
+              : h("tr",{key:t.id,style:{background:i%2?"#F5F8FA":"#fff",opacity:t.is_active?1:0.5}},
+                  h("td",{style:{padding:"11px 12px",fontSize:13,fontWeight:600,color:"#0A1628"}},t.name),
+                  h("td",{style:{padding:"11px 12px",fontSize:12,color:"#4A5D72"}},t.category),
+                  h("td",{style:{padding:"11px 12px",fontWeight:700,color:"#0A1628"}},"₹"+t.price),
+                  h("td",{style:{padding:"11px 12px",fontSize:12,color:"#4A5D72"}},t.turnaround_hrs+"h"),
+                  h("td",{style:{padding:"11px 12px",fontSize:12}},t.fasting_required?"⚠️ Yes":"No"),
+                  h("td",{style:{padding:"11px 12px"}},
+                    h("span",{style:{background:(t.is_active?"#198754":"#DC3545")+"22",color:t.is_active?"#198754":"#DC3545",border:"1px solid "+(t.is_active?"#198754":"#DC3545")+"44",padding:"2px 10px",borderRadius:20,fontSize:11,fontWeight:700}},t.is_active?"Active":"Inactive")
+                  ),
+                  h("td",{style:{padding:"11px 12px"}},
+                    h("div",{style:{display:"flex",gap:6}},
+                      h("button",{onClick:()=>{setEditing(t.id);setForm({name:t.name,category:t.category,price:t.price,turnaround_hrs:t.turnaround_hrs,fasting_required:t.fasting_required});},className:"btn",style:{background:"transparent",color:"#0D8A89",border:"2px solid #0D8A89",padding:"4px 10px",fontSize:11}},"Edit"),
+                      h("button",{onClick:()=>toggleActive(t),className:"btn",style:{background:t.is_active?"#FFF0F1":"#F0FFF5",color:t.is_active?"#DC3545":"#198754",border:"2px solid "+(t.is_active?"#DC3545":"#198754"),padding:"4px 10px",fontSize:11}},t.is_active?"Disable":"Enable")
+                    )
+                  )
+                )
+            )
+          )
+        )
+      )
+    );
+  }
+
+  const pages={dashboard:h(Dashboard),samples:h(Samples),patients:h(Patients),billing:h(Billing),tests:h(ManageTests)};
   return h("div",{style:{display:"flex",minHeight:"100vh"}},
     h(Sidebar,{nav,active,setActive,user,onLogout,color:"#1A3356"}),
     h("div",{style:{flex:1,padding:28,overflowY:"auto",maxHeight:"100vh"}},pages[active]||pages.dashboard)

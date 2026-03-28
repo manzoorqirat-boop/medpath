@@ -1318,16 +1318,24 @@ function TechApp({user,onLogout}) {
     const queue=samples.filter(s=>s.status==="Collected"||s.status==="Processing");
 
     async function loadSample(s) {
-      setSelected(s);setParams([]);setInputs({});setTechNotes("");setSavedMsg("");
+      setSelected(s);setParams([]);setInputs({});setTechNotes("");setSavedMsg("Loading parameters...");
       await updateStatus(s.id,"Processing");
-      // Load sample with tests+parameters in one call
       const sd=await api("GET","/api/samples/"+s.id);
-      const tests=(sd.sample?.tests)||[];
-      if(!tests.length){setSavedMsg("No tests found for this sample. Ensure tests are booked correctly.");return;}
-      // Filter tests that have parameters configured
-      const withParams=tests.filter(t=>t.parameters&&t.parameters.length>0);
-      if(!withParams.length){setSavedMsg("Tests found but no parameters configured. Ask Admin to add parameters to these tests.");return;}
-      setParams(withParams);
+      const testIds=(sd.sample?.test_ids)||[];
+      const idsToLoad=testIds.length?testIds:((sd.sample?.tests)||[]).map(t=>t.id);
+      if(!idsToLoad.length){setSavedMsg("No tests linked to this sample. Please contact admin.");return;}
+      const allTests=[];
+      for(const tid of idsToLoad){
+        const td=await api("GET","/api/tests/"+tid);
+        if(td.test){
+          const pd=await api("GET","/api/tests/"+tid+"/parameters");
+          const parameters=pd.parameters||td.test.parameters||[];
+          allTests.push({...td.test,parameters});
+        }
+      }
+      const withParams=allTests.filter(t=>t.parameters&&t.parameters.length>0);
+      if(!withParams.length){setSavedMsg("No parameters found. Go to Admin > Tests > Params and add parameters first.");return;}
+      setParams(withParams);setSavedMsg("");
       const ni={};
       withParams.forEach(t=>t.parameters.forEach(p=>{ni[p.id]={value:"",flag:"Normal",unit:p.unit||"",ref:p.range_text||"",param_name:p.param_name};}));
       setInputs(ni);

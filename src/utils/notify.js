@@ -34,15 +34,16 @@ async function sendSMS({ to, message }) {
     return false;
   }
   try {
-    const phone = to.replace("+91","").replace("+","");
-    const url = "https://www.fast2sms.com/dev/bulkV2?authorization="+process.env.SMS_API_KEY+"&route=q&message="+encodeURIComponent(message)+"&flash=0&numbers="+phone;
+    const phone = to.replace("+91","").replace("+","").replace(/\s/g,"");
+    const url = `https://www.fast2sms.com/dev/bulkV2?authorization=${process.env.SMS_API_KEY}&route=q&message=${encodeURIComponent(message)}&flash=0&numbers=${phone}`;
     const res = await fetch(url);
     const data = await res.json();
-    if(data.return) {
+    logger.info("Fast2SMS response:", JSON.stringify(data));
+    if(data.return===true) {
       logger.info("SMS sent to "+to);
       return true;
     }
-    logger.error("SMS failed:", data.message);
+    logger.error("SMS failed:", JSON.stringify(data));
     return false;
   } catch (err) {
     logger.error("SMS send failed:", err.message);

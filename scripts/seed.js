@@ -44,10 +44,11 @@ async function seed() {
       ON CONFLICT(email) DO NOTHING`, [adminHash]);
     const { rows: [adminUser] } = await client.query(
       "SELECT id FROM users WHERE email='admin@medpath.com'");
-    await client.query(`
-      INSERT INTO staff(user_id,staff_no,designation,department,joined_date)
-      VALUES($1,'STF-0001','Administrator','Management','2020-01-01')
-      ON CONFLICT(staff_no) DO NOTHING`, [adminUser.id]);
+    const {rows:existingAdmin} = await client.query("SELECT id FROM staff WHERE staff_no='STF-0001'");
+if(!existingAdmin.length) {
+  await client.query(`INSERT INTO staff(user_id,staff_no,designation,department,joined_date)
+    VALUES($1,'STF-0001','Administrator','Management','2020-01-01')`, [adminUser.id]);
+}
 
     const docHash = await bcrypt.hash("doc123", 12);
     await client.query(`

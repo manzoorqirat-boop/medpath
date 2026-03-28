@@ -60,6 +60,74 @@ router1.put("/:id", authenticate, authorize("admin"), async (req, res, next) => 
   } catch (err) { next(err); }
 });
 
+/* ── Test Parameters CRUD ── */
+
+// GET /api/tests/:id/parameters
+router1.get("/:id/parameters", async (req, res, next) => {
+  try {
+    const { rows } = await query(
+      "SELECT * FROM test_parameters WHERE test_id=$1 ORDER BY display_order",
+      [req.params.id]);
+    res.json({ parameters: rows });
+  } catch (err) { next(err); }
+});
+
+// POST /api/tests/:id/parameters — add new parameter
+router1.post("/:id/parameters", authenticate, authorize("admin"), async (req, res, next) => {
+  try {
+    const {
+      param_name, unit,
+      range_male_min, range_male_max,
+      range_female_min, range_female_max,
+      range_text, display_order
+    } = req.body;
+    if (!param_name) return res.status(400).json({ error: "param_name is required" });
+    const { rows: [p] } = await query(`
+      INSERT INTO test_parameters
+        (test_id,param_name,unit,range_male_min,range_male_max,range_female_min,range_female_max,range_text,display_order)
+      VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING *`,
+      [req.params.id, param_name, unit||null,
+       range_male_min||null, range_male_max||null,
+       range_female_min||null, range_female_max||null,
+       range_text||null, display_order||0]);
+    res.status(201).json({ parameter: p });
+  } catch (err) { next(err); }
+});
+
+// PUT /api/tests/parameters/:paramId — update parameter
+router1.put("/parameters/:paramId", authenticate, authorize("admin"), async (req, res, next) => {
+  try {
+    const {
+      param_name, unit,
+      range_male_min, range_male_max,
+      range_female_min, range_female_max,
+      range_text, display_order
+    } = req.body;
+    const { rows: [p] } = await query(`
+      UPDATE test_parameters
+      SET param_name=$1, unit=$2,
+          range_male_min=$3, range_male_max=$4,
+          range_female_min=$5, range_female_max=$6,
+          range_text=$7, display_order=$8
+      WHERE id=$9 RETURNING *`,
+      [param_name, unit||null,
+       range_male_min||null, range_male_max||null,
+       range_female_min||null, range_female_max||null,
+       range_text||null, display_order||0,
+       req.params.paramId]);
+    if (!p) return res.status(404).json({ error: "Parameter not found" });
+    res.json({ parameter: p });
+  } catch (err) { next(err); }
+});
+
+// DELETE /api/tests/parameters/:paramId — delete parameter
+router1.delete("/parameters/:paramId", authenticate, authorize("admin"), async (req, res, next) => {
+  try {
+    await query("DELETE FROM test_parameters WHERE id=$1", [req.params.paramId]);
+    res.json({ message: "Parameter deleted" });
+  } catch (err) { next(err); }
+});
+
 const router2 = require("express").Router();
 router2.use(authenticate);
 

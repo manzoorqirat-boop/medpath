@@ -503,9 +503,9 @@ function PatientApp({user,onLogout}) {
         h("div",{style:{color:"var(--t2)",fontSize:14,marginBottom:14}},"No samples yet. Book a test to get started!"),
         h("button",{onClick:()=>setActive("tests"),className:"btn primary",style:{width:"auto",padding:"9px 22px"}},"Book Tests →")
       ),
-      h("div",{className:"card",style:{padding:0,overflow:"hidden"}},
-        h("table",{className:"glass-table"},
-          h("thead",null,h("tr",null,["Sample No","Tests","Date","Status","Progress"].map(c=>h("th",{key:c},c)))),
+      h("div",{className:"card",style:{padding:0,overflowX:"auto"}},
+        h("table",{className:"glass-table",style:{minWidth:580}},
+          h("thead",null,h("tr",null,["Sample No","Patient","Tests","Status","Priority","Action"].map(c=>h("th",{key:c},c)))),
           h("tbody",null,
             samples.map(s=>h("tr",{key:s.id},
               h("td",{style:{fontFamily:"var(--mono)",fontWeight:600,color:"var(--p)",fontSize:12}},s.sample_no),

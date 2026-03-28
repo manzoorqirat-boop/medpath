@@ -33,8 +33,21 @@ async function sendSMS({ to, message }) {
     logger.warn("SMS not configured – skipped");
     return false;
   }
-  logger.info(`SMS sent to ${to}: ${message.slice(0, 50)}`);
-  return true;
+  try {
+    const phone = to.replace("+91","").replace("+","");
+    const url = "https://www.fast2sms.com/dev/bulkV2?authorization="+process.env.SMS_API_KEY+"&route=q&message="+encodeURIComponent(message)+"&flash=0&numbers="+phone;
+    const res = await fetch(url);
+    const data = await res.json();
+    if(data.return) {
+      logger.info("SMS sent to "+to);
+      return true;
+    }
+    logger.error("SMS failed:", data.message);
+    return false;
+  } catch (err) {
+    logger.error("SMS send failed:", err.message);
+    return false;
+  }
 }
 
 async function notifyReportReady({ name, phone, email, sampleNo, testNames }) {

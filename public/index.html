@@ -3,19 +3,144 @@
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-<title>MedPath Lab</title>
+<title>MedPath LIS</title>
 <script src="https://unpkg.com/react@18/umd/react.development.js"></script>
 <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
 <style>
+@import url('https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700;800&display=swap');
 *{margin:0;padding:0;box-sizing:border-box;}
-body{font-family:Georgia,serif;background:#F5F8FA;}
-.btn{border:none;border-radius:9px;cursor:pointer;font-family:inherit;font-weight:700;padding:11px 24px;font-size:14px;}
-.card{background:#fff;border-radius:14px;border:1px solid #D4DCE8;box-shadow:0 2px 12px #0A162810;}
-.loading{display:flex;align-items:center;justify-content:center;padding:40px;color:#8A9BB0;font-size:14px;}
+body{font-family:'Poppins',sans-serif;background:#0A0E27;min-height:100vh;overflow-x:hidden;}
+
+/* Gradient Background */
+.bg{
+  position:fixed;inset:0;z-index:0;
+  background:linear-gradient(135deg,#0A0E27 0%,#1a1040 30%,#0d2b4a 60%,#0a3a3a 100%);
+}
+.bg::before{
+  content:'';position:absolute;inset:0;
+  background:radial-gradient(ellipse at 20% 20%,rgba(99,102,241,0.3) 0%,transparent 50%),
+             radial-gradient(ellipse at 80% 80%,rgba(14,165,165,0.3) 0%,transparent 50%),
+             radial-gradient(ellipse at 50% 50%,rgba(168,85,247,0.1) 0%,transparent 70%);
+}
+
+/* Glass Card */
+.glass{
+  background:rgba(255,255,255,0.08);
+  backdrop-filter:blur(20px);
+  -webkit-backdrop-filter:blur(20px);
+  border:1px solid rgba(255,255,255,0.15);
+  border-radius:20px;
+  box-shadow:0 8px 32px rgba(0,0,0,0.3);
+}
+.glass-dark{
+  background:rgba(0,0,0,0.2);
+  backdrop-filter:blur(20px);
+  -webkit-backdrop-filter:blur(20px);
+  border:1px solid rgba(255,255,255,0.08);
+  border-radius:16px;
+}
+.glass-light{
+  background:rgba(255,255,255,0.12);
+  backdrop-filter:blur(16px);
+  -webkit-backdrop-filter:blur(16px);
+  border:1px solid rgba(255,255,255,0.2);
+  border-radius:14px;
+}
+
+/* Buttons */
+.btn-primary{
+  background:linear-gradient(135deg,#6366f1,#8b5cf6);
+  color:#fff;border:none;border-radius:12px;
+  padding:14px 24px;font-size:15px;font-weight:600;
+  cursor:pointer;font-family:inherit;width:100%;
+  box-shadow:0 4px 20px rgba(99,102,241,0.4);
+  transition:all .2s;
+}
+.btn-primary:hover{transform:translateY(-1px);box-shadow:0 6px 24px rgba(99,102,241,0.5);}
+.btn-teal{
+  background:linear-gradient(135deg,#0ea5e9,#14b8a6);
+  color:#fff;border:none;border-radius:12px;
+  padding:12px 20px;font-size:14px;font-weight:600;
+  cursor:pointer;font-family:inherit;
+  box-shadow:0 4px 16px rgba(14,165,165,0.3);
+}
+.btn-outline{
+  background:transparent;
+  color:rgba(255,255,255,0.8);
+  border:1px solid rgba(255,255,255,0.3);
+  border-radius:10px;padding:8px 16px;
+  font-size:13px;font-weight:500;cursor:pointer;font-family:inherit;
+}
+.btn-sm{
+  padding:6px 14px;font-size:12px;border-radius:8px;
+  border:none;cursor:pointer;font-family:inherit;font-weight:600;
+}
+
+/* Input */
+.inp{
+  width:100%;padding:13px 16px;
+  background:rgba(255,255,255,0.08);
+  border:1px solid rgba(255,255,255,0.15);
+  border-radius:12px;color:#fff;
+  font-size:14px;outline:none;
+  font-family:inherit;box-sizing:border-box;
+  transition:border .2s;
+}
+.inp::placeholder{color:rgba(255,255,255,0.4);}
+.inp:focus{border-color:rgba(99,102,241,0.6);background:rgba(255,255,255,0.12);}
+
+/* Sidebar */
+.sidebar{
+  width:240px;min-height:100vh;
+  background:rgba(0,0,0,0.3);
+  backdrop-filter:blur(20px);
+  border-right:1px solid rgba(255,255,255,0.08);
+  display:flex;flex-direction:column;
+  padding:0 0 20px;flex-shrink:0;
+  position:fixed;left:0;top:0;bottom:0;z-index:10;
+}
+.main-content{margin-left:240px;min-height:100vh;padding:24px;}
+
+/* Mobile */
+@media(max-width:768px){
+  .sidebar{width:100%;min-height:auto;position:relative;flex-direction:row;flex-wrap:wrap;padding:12px;}
+  .main-content{margin-left:0;padding:16px;}
+  .sidebar-nav{display:flex;flex-direction:row;flex-wrap:wrap;gap:4px;flex:1;}
+  .sidebar-nav button{flex:1;min-width:80px;padding:8px 4px !important;font-size:11px !important;}
+  .sidebar-header{width:100%;padding:12px 16px !important;border-bottom:none !important;border-right:1px solid rgba(255,255,255,0.08);}
+}
+
+/* Stat Card */
+.stat-card{
+  background:rgba(255,255,255,0.06);
+  backdrop-filter:blur(12px);
+  border:1px solid rgba(255,255,255,0.1);
+  border-radius:16px;padding:20px;
+  text-align:center;
+}
+
+/* Table */
+.glass-table{width:100%;border-collapse:collapse;color:#fff;}
+.glass-table th{background:rgba(99,102,241,0.3);padding:12px 14px;text-align:left;font-size:11px;font-weight:600;letter-spacing:.5px;text-transform:uppercase;}
+.glass-table td{padding:12px 14px;font-size:13px;border-bottom:1px solid rgba(255,255,255,0.05);}
+.glass-table tr:hover td{background:rgba(255,255,255,0.03);}
+
+/* Badge */
+.badge{display:inline-block;padding:3px 10px;border-radius:20px;font-size:10px;font-weight:700;}
+
+/* Animations */
+@keyframes fadeIn{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}
+.fade-in{animation:fadeIn .3s ease;}
+
+/* Scrollbar */
+::-webkit-scrollbar{width:4px;}
+::-webkit-scrollbar-track{background:transparent;}
+::-webkit-scrollbar-thumb{background:rgba(255,255,255,0.2);border-radius:2px;}
 </style>
 </head>
 <body>
-<div id="root"></div>
+<div class="bg"></div>
+<div id="root" style="position:relative;z-index:1;"></div>
 <script>
 const {useState,useEffect,createElement:h} = React;
 const API = "https://medpath-production.up.railway.app";
@@ -27,40 +152,52 @@ async function api(method, path, body) {
   try {
     const res = await fetch(API+path, {method, headers, body:body?JSON.stringify(body):undefined});
     return res.json();
-  } catch(e) {
-    return {error: "Network error"};
-  }
+  } catch(e) { return {error:"Network error"}; }
 }
 
 function Badge({label,color}) {
-  return h("span",{style:{background:color+"22",color,border:"1px solid "+color+"44",padding:"2px 10px",borderRadius:20,fontSize:11,fontWeight:700}},label);
+  return h("span",{className:"badge",style:{background:color+"33",color,border:"1px solid "+color+"55"}},label);
 }
 
 function Spinner() {
-  return h("div",{className:"loading"},"⏳ Loading...");
+  return h("div",{style:{display:"flex",alignItems:"center",justifyContent:"center",padding:40,color:"rgba(255,255,255,0.5)",fontSize:14}},"⏳ Loading...");
+}
+
+function GlassCard({children,style={},className=""}) {
+  return h("div",{className:"glass fade-in "+className,style},children);
+}
+
+function StatCard({icon,label,value,gradient}) {
+  return h("div",{className:"stat-card fade-in"},
+    h("div",{style:{fontSize:32,marginBottom:8}},icon),
+    h("div",{style:{fontSize:24,fontWeight:800,background:gradient,WebkitBackgroundClip:"text",WebkitTextFillColor:"transparent",backgroundClip:"text"}},value),
+    h("div",{style:{fontSize:11,color:"rgba(255,255,255,0.5)",marginTop:4,textTransform:"uppercase",letterSpacing:.5}},label)
+  );
 }
 
 function RoleSelect({onSelect}) {
   const roles=[
-    {id:"Patient",icon:"🧑‍⚕️",label:"Patient Portal",desc:"Book tests & view reports"},
-    {id:"Admin",icon:"🏥",label:"Admin Dashboard",desc:"Manage operations"},
-    {id:"Technician",icon:"🔬",label:"Lab Technician",desc:"Enter test results"},
-    {id:"Doctor",icon:"👨‍⚕️",label:"Doctor Panel",desc:"Review & sign reports"},
+    {id:"Patient",icon:"🧑‍⚕️",label:"Patient Portal",desc:"Book tests & view reports",gradient:"linear-gradient(135deg,#6366f1,#8b5cf6)"},
+    {id:"Admin",icon:"🏥",label:"Admin Dashboard",desc:"Manage all operations",gradient:"linear-gradient(135deg,#0ea5e9,#6366f1)"},
+    {id:"Technician",icon:"🔬",label:"Lab Technician",desc:"Process & enter results",gradient:"linear-gradient(135deg,#14b8a6,#0ea5e9)"},
+    {id:"Doctor",icon:"👨‍⚕️",label:"Doctor Panel",desc:"Review & sign reports",gradient:"linear-gradient(135deg,#f59e0b,#ef4444)"},
   ];
-  return h("div",{style:{minHeight:"100vh",background:"linear-gradient(135deg,#0A1628,#0d4a4a)",display:"flex",alignItems:"center",justifyContent:"center",padding:24}},
-    h("div",{style:{textAlign:"center",width:"100%",maxWidth:600}},
-      h("div",{style:{fontSize:64,marginBottom:12}},"🔬"),
-      h("h1",{style:{color:"#D4A843",fontSize:36,fontWeight:400,margin:0,letterSpacing:2}},"MedPath LIS"),
-      h("p",{style:{color:"#8BB8D4",marginTop:8,marginBottom:36,fontSize:15}},"Laboratory Information System · Live System"),
-      h("div",{style:{display:"grid",gridTemplateColumns:"1fr 1fr",gap:14,maxWidth:440,margin:"0 auto"}},
-        roles.map(r=>h("button",{key:r.id,onClick:()=>onSelect(r.id),style:{background:"#ffffff10",border:"1.5px solid #ffffff25",borderRadius:14,padding:"22px 14px",cursor:"pointer",color:"#fff",fontFamily:"inherit",textAlign:"center",width:"100%"}},
-          h("div",{style:{fontSize:34,marginBottom:8}},r.icon),
-          h("div",{style:{fontWeight:700,fontSize:14,color:"#D4A843",marginBottom:4}},r.label),
-          h("div",{style:{fontSize:11,color:"#7FB3CC"}},r.desc)
-        ))
-      ),
-      h("p",{style:{color:"#ffffff40",marginTop:24,fontSize:12}},"NABL Accredited · ISO 15189 · 24×7 Support")
-    )
+  return h("div",{style:{minHeight:"100vh",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",padding:24}},
+    h("div",{style:{textAlign:"center",marginBottom:40}},
+      h("div",{style:{fontSize:64,marginBottom:12,filter:"drop-shadow(0 0 20px rgba(99,102,241,0.5))"}}, "🔬"),
+      h("h1",{style:{fontSize:36,fontWeight:800,background:"linear-gradient(135deg,#fff,#a5b4fc)",WebkitBackgroundClip:"text",WebkitTextFillColor:"transparent",backgroundClip:"text",letterSpacing:1}},"MedPath LIS"),
+      h("p",{style:{color:"rgba(255,255,255,0.5)",marginTop:8,fontSize:14}}, "Laboratory Information System · Live")
+    ),
+    h("div",{style:{display:"grid",gridTemplateColumns:"1fr 1fr",gap:16,width:"100%",maxWidth:420}},
+      roles.map(r=>h("button",{key:r.id,onClick:()=>onSelect(r.id),style:{background:"rgba(255,255,255,0.06)",border:"1px solid rgba(255,255,255,0.12)",borderRadius:20,padding:"24px 16px",cursor:"pointer",fontFamily:"inherit",textAlign:"center",transition:"all .2s",backdropFilter:"blur(12px)"},
+        onMouseEnter:e=>{e.currentTarget.style.background="rgba(255,255,255,0.12)";e.currentTarget.style.transform="translateY(-4px)";},
+        onMouseLeave:e=>{e.currentTarget.style.background="rgba(255,255,255,0.06)";e.currentTarget.style.transform="translateY(0)";}},
+        h("div",{style:{width:56,height:56,borderRadius:"50%",background:r.gradient,display:"flex",alignItems:"center",justifyContent:"center",fontSize:26,margin:"0 auto 12px",boxShadow:"0 4px 16px rgba(0,0,0,0.3)"}},r.icon),
+        h("div",{style:{fontWeight:700,fontSize:14,color:"#fff",marginBottom:4}},r.label),
+        h("div",{style:{fontSize:11,color:"rgba(255,255,255,0.4)"}},r.desc)
+      ))
+    ),
+    h("p",{style:{color:"rgba(255,255,255,0.2)",marginTop:32,fontSize:11,textAlign:"center"}},"NABL Accredited · ISO 15189 · 24×7 Support")
   );
 }
 
@@ -72,764 +209,99 @@ function Login({role,onLogin}) {
   const [loading,setLoading]=useState(false);
   const [err,setErr]=useState("");
   const creds={Admin:"admin",Technician:"tech123",Doctor:"doc123"};
+  const gradients={Patient:"linear-gradient(135deg,#6366f1,#8b5cf6)",Admin:"linear-gradient(135deg,#0ea5e9,#6366f1)",Technician:"linear-gradient(135deg,#14b8a6,#0ea5e9)",Doctor:"linear-gradient(135deg,#f59e0b,#ef4444)"};
+  const icons={Patient:"🧑‍⚕️",Admin:"🏥",Technician:"🔬",Doctor:"👨‍⚕️"};
 
   async function sendOtp() {
-    setLoading(true); setErr("");
-    const data = await api("POST","/api/auth/otp/send",{phone});
-    setLoading(false);
-    if(data.error) setErr(data.error);
-    else setStep(2);
+    setLoading(true);setErr("");
+    await api("POST","/api/auth/otp/send",{phone});
+    setLoading(false);setStep(2);
   }
 
   async function verifyOtp() {
-    setLoading(true); setErr("");
-    const data = await api("POST","/api/auth/otp/verify",{phone,otp});
+    setLoading(true);setErr("");
+    const data=await api("POST","/api/auth/otp/verify",{phone,otp});
     setLoading(false);
-    if(data.error) {
-      setErr("Wrong OTP. Please use 123456");
-    } else {
-      TOKEN=data.token;
-      onLogin({...data.user,patientId:data.user.patientId});
-    }
+    if(data.token){TOKEN=data.token;onLogin({...data.user,patientId:data.user.patientId});}
+    else setErr("Wrong OTP. Please use 123456");
   }
 
   async function staffLogin() {
-    setLoading(true); setErr("");
+    setLoading(true);setErr("");
     const emailMap={Admin:"admin@medpath.com",Technician:"suresh@medpath.com",Doctor:"anita@medpath.com"};
-    const data = await api("POST","/api/auth/login",{email:emailMap[role],password:pw});
+    const data=await api("POST","/api/auth/login",{email:emailMap[role],password:pw});
     setLoading(false);
-    if(data.error) { setErr("Wrong password. Try: "+creds[role]); }
-    else { TOKEN=data.token; onLogin(data.user); }
+    if(data.token){TOKEN=data.token;onLogin(data.user);}
+    else setErr("Wrong password. Try: "+creds[role]);
   }
 
-  const inp = {width:"100%",padding:"10px 13px",borderRadius:9,border:"1.5px solid #D4DCE8",fontSize:14,outline:"none",marginBottom:14,boxSizing:"border-box"};
-  const lbl = {display:"block",fontSize:11,fontWeight:700,color:"#4A5D72",marginBottom:5,textTransform:"uppercase",letterSpacing:.6};
-
-  return h("div",{style:{minHeight:"100vh",background:"linear-gradient(135deg,#0A1628,#0d4a4a)",display:"flex",alignItems:"center",justifyContent:"center",padding:20}},
-    h("div",{className:"card",style:{width:360,padding:36}},
-      h("div",{style:{textAlign:"center",marginBottom:24}},
-        h("div",{style:{fontSize:36}},"🔬"),
-        h("h2",{style:{margin:"8px 0 4px",color:"#0A1628"}},"MedPath LIS"),
-        h("span",{style:{background:"#E5F7F7",color:"#0D8A89",padding:"3px 12px",borderRadius:20,fontSize:12,fontWeight:700}},role+" Login")
+  return h("div",{style:{minHeight:"100vh",display:"flex",alignItems:"center",justifyContent:"center",padding:20}},
+    h("div",{className:"glass",style:{width:"100%",maxWidth:380,padding:32}},
+      h("div",{style:{textAlign:"center",marginBottom:28}},
+        h("div",{style:{width:64,height:64,borderRadius:"50%",background:gradients[role],display:"flex",alignItems:"center",justifyContent:"center",fontSize:28,margin:"0 auto 14px",boxShadow:"0 8px 24px rgba(0,0,0,0.3)"}},icons[role]),
+        h("h2",{style:{color:"#fff",fontSize:22,fontWeight:700,marginBottom:4}},"MedPath LIS"),
+        h("span",{style:{background:gradients[role],WebkitBackgroundClip:"text",WebkitTextFillColor:"transparent",fontSize:13,fontWeight:600}},role+" Login")
       ),
-      err&&h("div",{style:{background:"#FFF0F1",border:"1px solid #DC354544",borderRadius:8,padding:"10px 14px",marginBottom:14,fontSize:13,color:"#DC3545"}},err),
+      err&&h("div",{style:{background:"rgba(239,68,68,0.15)",border:"1px solid rgba(239,68,68,0.3)",borderRadius:10,padding:"10px 14px",marginBottom:16,fontSize:13,color:"#fca5a5"}},err),
       role==="Patient"&&step===1&&h("div",null,
-        h("label",{style:lbl},"Mobile Number"),
-        h("input",{value:phone,onChange:e=>setPhone(e.target.value),placeholder:"+91 9XXXXXXXXX",style:inp}),
-        h("p",{style:{fontSize:11,color:"#8A9BB0",marginBottom:12}},"Demo: use +919876543210"),
-        h("button",{onClick:sendOtp,disabled:loading,className:"btn",style:{width:"100%",background:"#0D8A89",color:"#fff"}},loading?"Sending...":"Send OTP")
+        h("label",{style:{display:"block",fontSize:11,fontWeight:600,color:"rgba(255,255,255,0.5)",marginBottom:8,textTransform:"uppercase",letterSpacing:.8}},"Mobile Number"),
+        h("input",{className:"inp",value:phone,onChange:e=>setPhone(e.target.value),placeholder:"+91 9XXXXXXXXX",style:{marginBottom:8}}),
+        h("p",{style:{fontSize:11,color:"rgba(255,255,255,0.3)",marginBottom:16}}),"Use +919876543210 for demo",
+        h("button",{onClick:sendOtp,disabled:loading,className:"btn-primary"},loading?"Sending OTP...":"Send OTP →")
       ),
       role==="Patient"&&step===2&&h("div",null,
-        h("p",{style:{fontSize:13,color:"#4A5D72",marginBottom:14}},"OTP sent to "+phone),
-        h("label",{style:lbl},"Enter OTP"),
-        h("input",{value:otp,onChange:e=>setOtp(e.target.value),placeholder:"Enter 123456",style:inp}),
-        h("button",{onClick:verifyOtp,disabled:loading,className:"btn",style:{width:"100%",background:"#0D8A89",color:"#fff",marginBottom:10}},loading?"Verifying...":"Verify & Login"),
-        h("p",{style:{textAlign:"center",fontSize:12,color:"#0D8A89",cursor:"pointer"},onClick:()=>setStep(1)},"← Change Number")
+        h("p",{style:{fontSize:13,color:"rgba(255,255,255,0.6)",marginBottom:16}},`OTP sent to ${phone}`),
+        h("label",{style:{display:"block",fontSize:11,fontWeight:600,color:"rgba(255,255,255,0.5)",marginBottom:8,textTransform:"uppercase",letterSpacing:.8}},"Enter OTP"),
+        h("input",{className:"inp",value:otp,onChange:e=>setOtp(e.target.value),placeholder:"123456",style:{marginBottom:8,letterSpacing:4,fontSize:20,textAlign:"center"}}),
+        h("p",{style:{fontSize:11,color:"rgba(255,255,255,0.3)",marginBottom:16,textAlign:"center"}},"OTP is 123456"),
+        h("button",{onClick:verifyOtp,disabled:loading,className:"btn-primary",style:{marginBottom:12}},loading?"Verifying...":"Verify & Login ✓"),
+        h("p",{style:{textAlign:"center",fontSize:12,color:"rgba(99,102,241,0.8)",cursor:"pointer"},onClick:()=>setStep(1)},"← Change Number")
       ),
       role!=="Patient"&&h("div",null,
-        h("label",{style:lbl},"Password"),
-        h("input",{type:"password",value:pw,onChange:e=>setPw(e.target.value),placeholder:"Enter password",style:inp}),
-        h("p",{style:{fontSize:12,color:"#8A9BB0",marginBottom:14}},"Demo password: "+creds[role]),
-        h("button",{onClick:staffLogin,disabled:loading,className:"btn",style:{width:"100%",background:"#0D8A89",color:"#fff"}},loading?"Logging in...":"Login")
+        h("label",{style:{display:"block",fontSize:11,fontWeight:600,color:"rgba(255,255,255,0.5)",marginBottom:8,textTransform:"uppercase",letterSpacing:.8}},"Password"),
+        h("input",{type:"password",className:"inp",value:pw,onChange:e=>setPw(e.target.value),placeholder:"Enter password",style:{marginBottom:8}}),
+        h("p",{style:{fontSize:11,color:"rgba(255,255,255,0.3)",marginBottom:16}},`Demo: ${creds[role]}`),
+        h("button",{onClick:staffLogin,disabled:loading,className:"btn-primary"},loading?"Logging in...":"Login →")
       ),
-      h("p",{style:{textAlign:"center",fontSize:12,color:"#0D8A89",marginTop:16,cursor:"pointer"},onClick:()=>onLogin(null,true)},"← Back to role selection")
+      h("p",{style:{textAlign:"center",fontSize:12,color:"rgba(255,255,255,0.3)",marginTop:20,cursor:"pointer"},onClick:()=>onLogin(null,true)},"← Back to role selection")
     )
   );
 }
 
-function Sidebar({nav,active,setActive,user,onLogout,color}) {
-  return h("div",{style:{width:200,minHeight:"100vh",background:"#0A1628",display:"flex",flexDirection:"column",padding:"0 0 20px",flexShrink:0}},
-    h("div",{style:{padding:"20px 18px 16px",borderBottom:"1px solid #ffffff18"}},
-      h("div",{style:{fontSize:24}},"🔬"),
-      h("div",{style:{color:"#D4A843",fontWeight:700,fontSize:16,marginTop:4}},"MedPath"),
-      h("div",{style:{color:"#ffffff60",fontSize:10,marginTop:2}},"LIVE SYSTEM")
+function Sidebar({nav,active,setActive,user,onLogout,gradient}) {
+  return h("div",{className:"sidebar"},
+    h("div",{className:"sidebar-header",style:{padding:"24px 20px 20px",borderBottom:"1px solid rgba(255,255,255,0.08)"}},
+      h("div",{style:{display:"flex",alignItems:"center",gap:10,marginBottom:4}},
+        h("div",{style:{width:36,height:36,borderRadius:10,background:gradient,display:"flex",alignItems:"center",justifyContent:"center",fontSize:18,boxShadow:"0 4px 12px rgba(0,0,0,0.3)"}},"🔬"),
+        h("div",null,
+          h("div",{style:{color:"#fff",fontWeight:700,fontSize:16}},"MedPath"),
+          h("div",{style:{color:"rgba(255,255,255,0.4)",fontSize:9,letterSpacing:.8,textTransform:"uppercase"}},"Live System")
+        )
+      )
     ),
-    h("div",{style:{flex:1,padding:"12px 8px"}},
-      nav.map(n=>h("button",{key:n.id,onClick:()=>setActive(n.id),style:{width:"100%",display:"flex",alignItems:"center",gap:10,padding:"10px 12px",borderRadius:9,marginBottom:3,border:"none",cursor:"pointer",fontFamily:"inherit",background:active===n.id?color:"transparent",color:active===n.id?"#fff":"#ffffff70",fontWeight:active===n.id?700:400,fontSize:13,textAlign:"left"}},
-        h("span",{style:{fontSize:16}},n.icon),n.label
+    h("div",{className:"sidebar-nav",style:{flex:1,padding:"12px 10px"}},
+      nav.map(n=>h("button",{key:n.id,onClick:()=>setActive(n.id),style:{
+        width:"100%",display:"flex",alignItems:"center",gap:10,
+        padding:"11px 14px",borderRadius:12,marginBottom:4,border:"none",
+        cursor:"pointer",fontFamily:"inherit",fontSize:13,textAlign:"left",
+        background:active===n.id?"rgba(255,255,255,0.12)":"transparent",
+        color:active===n.id?"#fff":"rgba(255,255,255,0.5)",
+        fontWeight:active===n.id?600:400,
+        borderLeft:active===n.id?"3px solid #6366f1":"3px solid transparent",
+        transition:"all .15s"
+      }},
+        h("span",{style:{fontSize:18}},n.icon),n.label
       ))
     ),
-    h("div",{style:{padding:"12px 16px",borderTop:"1px solid #ffffff18"}},
-      h("div",{style:{color:"#fff",fontSize:12,fontWeight:600,marginBottom:4}},user.name),
-      h("div",{style:{color:"#ffffff55",fontSize:10,marginBottom:8}},user.email||user.role),
-      h("button",{onClick:onLogout,style:{background:"#ffffff15",border:"none",color:"#fff",borderRadius:8,padding:"7px 12px",cursor:"pointer",fontSize:11,width:"100%",fontFamily:"inherit"}},"Sign Out")
+    h("div",{style:{padding:"16px 14px",borderTop:"1px solid rgba(255,255,255,0.08)"}},
+      h("div",{style:{display:"flex",alignItems:"center",gap:10,marginBottom:12}},
+        h("div",{style:{width:36,height:36,borderRadius:"50%",background:gradient,display:"flex",alignItems:"center",justifyContent:"center",color:"#fff",fontSize:16,fontWeight:700}},user.name?user.name[0]:"U"),
+        h("div",null,
+          h("div",{style:{color:"#fff",fontSize:12,fontWeight:600}},user.name),
+          h("div",{style:{color:"rgba(255,255,255,0.4)",fontSize:10}},user.email||user.role)
+        )
+      ),
+      h("button",{onClick:onLogout,style:{width:"100%",background:"rgba(255,255,255,0.06)",border:"1px solid rgba(255,255,255,0.1)",color:"rgba(255,255,255,0.6)",borderRadius:10,padding:"8px",cursor:"pointer",fontSize:12,fontFamily:"inherit"}},"Sign Out")
     )
   );
 }
-function PatientApp({user,onLogout}) {
-  const [active,setActive]=useState("dashboard");
-  const [cart,setCart]=useState([]);
-  const [tests,setTests]=useState([]);
-  const [samples,setSamples]=useState([]);
-  const [bills,setBills]=useState([]);
-  const [stats,setStats]=useState({});
-  const [loading,setLoading]=useState(false);
-  const nav=[
-    {id:"dashboard",icon:"🏠",label:"Dashboard"},
-    {id:"samples",icon:"🔬",label:"Samples"},
-    {id:"patients",icon:"👥",label:"Patients"},
-    {id:"billing",icon:"💰",label:"Billing"},
-    {id:"tests",icon:"🧪",label:"Manage Tests"},
-  ];
-    {id:"family",icon:"👨‍👩‍👧",label:"Family"},
-    {id:"profile",icon:"👤",label:"Profile"},
-  ];
-  const total=cart.reduce((s,t)=>s+Number(t.price),0);
-
-  useEffect(()=>{
-    api("GET","/api/tests").then(d=>{ if(d.tests) setTests(d.tests); });
-    if(user.patientId) {
-      api("GET","/api/samples?limit=10").then(d=>{ if(d.samples) setSamples(d.samples); });
-      api("GET","/api/billing").then(d=>{ if(d.invoices) setBills(d.invoices); });
-    }
-  },[]);
-
-  async function bookTests() {
-    if(!cart.length) return;
-    setLoading(true);
-    const data = await api("POST","/api/samples",{
-      patient_id: user.patientId,
-      test_ids: cart.map(t=>t.id),
-      collection_type: "Walk-in",
-      priority: "Normal"
-    });
-    setLoading(false);
-    if(data.sample) {
-      setSamples(prev=>[data.sample,...prev]);
-      setCart([]);
-      alert("Tests booked! Sample: "+data.sample.sample_no);
-    } else {
-      alert("Booked! (Demo mode)");
-      setCart([]);
-    }
-  }
-
-  async function payBill(billId) {
-    const data = await api("PATCH","/api/billing/"+billId+"/pay",{payment_mode:"UPI"});
-    if(data.invoice) {
-      setBills(prev=>prev.map(b=>b.id===billId?data.invoice:b));
-      alert("Payment successful!");
-    }
-  }
-
-  function Dashboard() {
-    const ready=samples.filter(s=>s.status==="Reported"||s.status==="Dispatched").length;
-    const pending=bills.filter(b=>!b.paid).reduce((s,b)=>s+Number(b.total),0);
-    return h("div",null,
-      h("h2",{style:{margin:"0 0 6px",color:"#0A1628"}},"Good morning, "+user.name.split(" ")[0]+" 👋"),
-      h("p",{style:{color:"#8A9BB0",fontSize:13,marginBottom:24}},"Welcome to MedPath · Live System"),
-      h("div",{style:{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(140px,1fr))",gap:14,marginBottom:24}},
-        [{icon:"🧪",label:"Tests Booked",value:samples.length,color:"#0D8A89"},
-         {icon:"📄",label:"Reports Ready",value:ready,color:"#198754"},
-         {icon:"💳",label:"Pending Dues",value:"₹"+pending,color:"#E07B12"},
-         {icon:"🛒",label:"In Cart",value:cart.length,color:"#1A73E8"},
-        ].map(s=>h("div",{key:s.label,className:"card",style:{padding:"16px 18px"}},
-          h("div",{style:{fontSize:24,marginBottom:6}},s.icon),
-          h("div",{style:{fontSize:22,fontWeight:800,color:s.color}},s.value),
-          h("div",{style:{fontSize:12,color:"#8A9BB0"}},s.label)
-        ))
-      ),
-      h("div",{className:"card",style:{padding:22}},
-        h("h3",{style:{margin:"0 0 14px",color:"#0A1628"}},"Quick Actions"),
-        nav.filter(n=>n.id!=="dashboard").map(n=>h("button",{key:n.id,onClick:()=>setActive(n.id),style:{width:"100%",display:"flex",alignItems:"center",gap:12,padding:"11px 14px",borderRadius:9,border:"1px solid #EDF1F5",background:"#F5F8FA",cursor:"pointer",marginBottom:8,fontFamily:"inherit",fontWeight:600,fontSize:13,color:"#0A1628",textAlign:"left"}},
-          h("span",{style:{fontSize:18}},n.icon),n.label,
-          h("span",{style:{marginLeft:"auto",color:"#0D8A89"}},"›")
-        ))
-      )
-    );
-  }
-
-  function Tests() {
-    const [search,setSearch]=useState("");
-    const inCart=id=>cart.find(c=>c.id===id);
-    const toggle=t=>setCart(prev=>inCart(t.id)?prev.filter(c=>c.id!==t.id):[...prev,t]);
-    const filtered=tests.filter(t=>t.name.toLowerCase().includes(search.toLowerCase())||t.category.toLowerCase().includes(search.toLowerCase()));
-    return h("div",null,
-      h("div",{style:{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:20,flexWrap:"wrap",gap:10}},
-        h("h2",{style:{color:"#0A1628"}},"Book Tests"),
-        cart.length>0&&h("div",{className:"card",style:{padding:"12px 16px",display:"flex",alignItems:"center",gap:14,border:"2px solid #0D8A89"}},
-          h("div",null,
-            h("div",{style:{fontSize:12,color:"#8A9BB0"}},cart.length+" test(s)"),
-            h("div",{style:{fontSize:18,fontWeight:800,color:"#0D8A89"}},"₹"+total)
-          ),
-          h("button",{onClick:bookTests,disabled:loading,className:"btn",style:{background:"#D4A843",color:"#0A1628",padding:"8px 16px",fontSize:13}},loading?"Booking...":"Book Now ✓")
-        )
-      ),
-      h("input",{value:search,onChange:e=>setSearch(e.target.value),placeholder:"🔍 Search tests...",style:{width:"100%",padding:"10px 14px",borderRadius:9,border:"1.5px solid #D4DCE8",fontSize:14,outline:"none",marginBottom:16,boxSizing:"border-box"}}),
-      tests.length===0&&h(Spinner),
-      h("div",{style:{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(200px,1fr))",gap:12}},
-        filtered.map(t=>{
-          const sel=inCart(t.id);
-          return h("div",{key:t.id,className:"card",onClick:()=>toggle(t),style:{padding:16,border:"2px solid "+(sel?"#0D8A89":"#D4DCE8"),background:sel?"#E5F7F7":"#fff",cursor:"pointer"}},
-            h("div",{style:{fontSize:11,fontWeight:700,color:"#0D8A89",marginBottom:6}},t.category),
-            h("div",{style:{fontWeight:700,fontSize:13,color:"#0A1628",marginBottom:4}},t.name),
-            t.fasting_required&&h("div",{style:{fontSize:10,color:"#E07B12",marginBottom:6}},"⚠️ Fasting required"),
-            h("div",{style:{display:"flex",justifyContent:"space-between",alignItems:"center",marginTop:8}},
-              h("div",{style:{fontSize:18,fontWeight:800,color:sel?"#0D8A89":"#0A1628"}},"₹"+t.price),
-              h("div",{style:{width:22,height:22,borderRadius:"50%",border:"2px solid "+(sel?"#0D8A89":"#D4DCE8"),background:sel?"#0D8A89":"#fff",display:"flex",alignItems:"center",justifyContent:"center",color:sel?"#fff":"#8A9BB0",fontSize:13,fontWeight:700}},sel?"✓":"+")
-            )
-          );
-        })
-      )
-    );
-  }
-
-  function Reports() {
-    const statusColor={Pending:"#E07B12",Collected:"#1A73E8",Processing:"#0D8A89",Reported:"#7B2FBE",Dispatched:"#198754"};
-    return h("div",null,
-      h("h2",{style:{margin:"0 0 20px",color:"#0A1628"}},"My Reports"),
-      samples.length===0&&h("div",{className:"card",style:{padding:30,textAlign:"center"}},
-        h("div",{style:{fontSize:40,marginBottom:10}},"📋"),
-        h("p",{style:{color:"#8A9BB0",fontSize:14}},"No samples yet. Book a test to get started!")
-      ),
-      h("div",{style:{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(220px,1fr))",gap:14}},
-        samples.map(s=>h("div",{key:s.id,className:"card",style:{padding:20}},
-          h("div",{style:{display:"flex",justifyContent:"space-between",marginBottom:8}},
-            h("span",{style:{fontWeight:700,fontSize:13,color:"#0A1628"}},s.sample_no),
-            h(Badge,{label:s.status,color:statusColor[s.status]||"#8A9BB0"})
-          ),
-          h("div",{style:{fontSize:12,color:"#4A5D72",marginBottom:4}},(s.test_names||[]).join(", ")),
-          h("div",{style:{fontSize:11,color:"#8A9BB0",marginBottom:12}},s.collected_at?new Date(s.collected_at).toLocaleDateString():"Pending collection"),
-          h("div",{style:{height:4,background:"#EDF1F5",borderRadius:2,overflow:"hidden"}},
-            h("div",{style:{height:"100%",background:statusColor[s.status]||"#8A9BB0",borderRadius:2,width:{Pending:"10%",Collected:"30%",Processing:"55%",Reported:"80%",Dispatched:"100%"}[s.status]||"10%"}})
-          )
-        ))
-      )
-    );
-  }
-
-  function Billing() {
-    return h("div",null,
-      h("h2",{style:{margin:"0 0 20px",color:"#0A1628"}},"Billing & Payments"),
-      h("div",{style:{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(140px,1fr))",gap:12,marginBottom:20}},
-        [{icon:"✅",label:"Paid",value:"₹"+bills.filter(b=>b.paid).reduce((s,b)=>s+Number(b.total),0),color:"#198754"},
-         {icon:"⏳",label:"Pending",value:"₹"+bills.filter(b=>!b.paid).reduce((s,b)=>s+Number(b.total),0),color:"#DC3545"},
-         {icon:"🧾",label:"Invoices",value:bills.length,color:"#0D8A89"},
-        ].map(s=>h("div",{key:s.label,className:"card",style:{padding:"16px 18px"}},
-          h("div",{style:{fontSize:22,marginBottom:6}},s.icon),
-          h("div",{style:{fontSize:20,fontWeight:800,color:s.color}},s.value),
-          h("div",{style:{fontSize:12,color:"#8A9BB0"}},s.label)
-        ))
-      ),
-      bills.length===0&&h("div",{className:"card",style:{padding:30,textAlign:"center"}},h("p",{style:{color:"#8A9BB0"}},"No invoices yet.")),
-      h("div",{className:"card",style:{padding:22}},
-        bills.map((b,i)=>h("div",{key:b.id,style:{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"14px 0",borderBottom:i<bills.length-1?"1px solid #EDF1F5":"none",flexWrap:"wrap",gap:8}},
-          h("div",null,
-            h("div",{style:{fontWeight:700,color:"#0A1628",fontSize:14}},b.invoice_no),
-            h("div",{style:{fontSize:12,color:"#8A9BB0",marginTop:2}},(b.test_names||[]).join(", ")),
-            h("div",{style:{fontSize:11,color:"#8A9BB0"}},new Date(b.created_at).toLocaleDateString())
-          ),
-          h("div",{style:{display:"flex",gap:10,alignItems:"center"}},
-            h("div",{style:{fontWeight:800,color:"#0A1628"}},"₹"+b.total),
-            h(Badge,{label:b.paid?"Paid":"Due",color:b.paid?"#198754":"#DC3545"}),
-            !b.paid&&h("button",{onClick:()=>payBill(b.id),className:"btn",style:{background:"#DC3545",color:"#fff",padding:"6px 14px",fontSize:12}},"Pay Now")
-          )
-        ))
-      )
-    );
-  }
-
-  function Family() {
-    const [members,setMembers]=useState([]);
-    const [loading,setLoading]=useState(true);
-    useEffect(()=>{
-      if(user.patientId) {
-        api("GET","/api/family/patient/"+user.patientId).then(d=>{
-          if(d.members) setMembers(d.members);
-          setLoading(false);
-        });
-      } else setLoading(false);
-    },[]);
-    return h("div",null,
-      h("h2",{style:{margin:"0 0 20px",color:"#0A1628"}},"Family Members"),
-      loading&&h(Spinner),
-      !loading&&members.length===0&&h("div",{className:"card",style:{padding:30,textAlign:"center"}},
-        h("div",{style:{fontSize:40,marginBottom:10}},"👨‍👩‍👧"),
-        h("p",{style:{color:"#8A9BB0"}},"No family members added yet.")
-      ),
-      h("div",{style:{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(200px,1fr))",gap:14}},
-        members.map(m=>h("div",{key:m.id,className:"card",style:{padding:20}},
-          h("div",{style:{width:44,height:44,borderRadius:"50%",background:"linear-gradient(135deg,#0D8A89,#0A1628)",display:"flex",alignItems:"center",justifyContent:"center",color:"#fff",fontSize:20,fontWeight:700,marginBottom:12}},m.name[0]),
-          h("div",{style:{fontWeight:700,color:"#0A1628"}},m.name),
-          h("div",{style:{fontSize:12,color:"#8A9BB0",marginBottom:8}},m.relation+(m.date_of_birth?" · "+new Date(m.date_of_birth).getFullYear():"")),
-          m.blood_group&&h(Badge,{label:"Blood: "+m.blood_group,color:"#DC3545"})
-        ))
-      )
-    );
-  }
-
-  function Profile() {
-    return h("div",null,
-      h("h2",{style:{margin:"0 0 20px",color:"#0A1628"}},"My Profile"),
-      h("div",{className:"card",style:{padding:24,maxWidth:400}},
-        h("div",{style:{display:"flex",gap:14,alignItems:"center",marginBottom:20}},
-          h("div",{style:{width:56,height:56,borderRadius:"50%",background:"linear-gradient(135deg,#0D8A89,#0A1628)",display:"flex",alignItems:"center",justifyContent:"center",color:"#fff",fontSize:24,fontWeight:700}},user.name[0]),
-          h("div",null,
-            h("div",{style:{fontSize:17,fontWeight:700,color:"#0A1628"}},user.name),
-            h("div",{style:{fontSize:12,color:"#8A9BB0"}},user.patientNo||user.id),
-            h("div",{style:{fontSize:12,color:"#8A9BB0"}},user.phone||user.email||"")
-          )
-        ),
-        [["Role",user.role],["Patient No",user.patientNo||"—"],["Email",user.email||"—"],["Phone",user.phone||"—"]].map(([k,v])=>
-          h("div",{key:k,style:{marginBottom:14}},
-            h("div",{style:{fontSize:10,color:"#8A9BB0",textTransform:"uppercase",letterSpacing:.5,marginBottom:3}},k),
-            h("div",{style:{fontSize:14,fontWeight:600,color:"#0A1628"}},v)
-          )
-        )
-      )
-    );
-  }
-
-  const pages={
-    dashboard:h(Dashboard),
-    tests:h(Tests),
-    reports:h(Reports),
-    billing:h(Billing),
-    family:h(Family),
-    profile:h(Profile),
-  };
-
-  return h("div",{style:{display:"flex",minHeight:"100vh"}},
-    h(Sidebar,{nav,active,setActive,user,onLogout,color:"#0D8A89"}),
-    h("div",{style:{flex:1,padding:28,overflowY:"auto",maxHeight:"100vh"}},pages[active]||pages.dashboard)
-  );
-}
-function AdminApp({user,onLogout}) {
-  const [active,setActive]=useState("dashboard");
-  const [samples,setSamples]=useState([]);
-  const [bills,setBills]=useState([]);
-  const [stats,setStats]=useState({});
-  const nav=[
-    {id:"dashboard",icon:"🏠",label:"Dashboard"},
-    {id:"samples",icon:"🔬",label:"Samples"},
-    {id:"patients",icon:"👥",label:"Patients"},
-    {id:"billing",icon:"💰",label:"Billing"},
-  ];
-  const statusColor={Pending:"#E07B12",Collected:"#1A73E8",Processing:"#0D8A89",Reported:"#7B2FBE",Dispatched:"#198754",Cancelled:"#DC3545"};
-  const statusOrder=["Pending","Collected","Processing","Reported","Dispatched"];
-
-  useEffect(()=>{
-    api("GET","/api/dashboard").then(d=>{ if(d.stats) setStats(d.stats); });
-    api("GET","/api/samples?limit=20").then(d=>{ if(d.samples) setSamples(d.samples); });
-    api("GET","/api/billing?limit=20").then(d=>{ if(d.invoices) setBills(d.invoices); });
-  },[]);
-
-  async function advanceSample(id,currentStatus) {
-    const next=statusOrder[statusOrder.indexOf(currentStatus)+1];
-    if(!next) return;
-    const data=await api("PATCH","/api/samples/"+id+"/status",{status:next});
-    if(data.sample) setSamples(prev=>prev.map(s=>s.id===id?{...s,status:next}:s));
-  }
-
-  async function markPaid(id) {
-    const data=await api("PATCH","/api/billing/"+id+"/pay",{payment_mode:"Manual"});
-    if(data.invoice) setBills(prev=>prev.map(b=>b.id===id?data.invoice:b));
-  }
-
-  function Dashboard() {
-    return h("div",null,
-      h("h2",{style:{margin:"0 0 6px",color:"#0A1628"}},"Admin Dashboard"),
-      h("p",{style:{color:"#8A9BB0",fontSize:13,marginBottom:22}},"Live system · "+new Date().toDateString()),
-      h("div",{style:{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(140px,1fr))",gap:12,marginBottom:22}},
-        [{icon:"🧪",label:"Today Samples",value:stats.today_samples||0,color:"#0D8A89"},
-         {icon:"👥",label:"Total Patients",value:stats.total_patients||0,color:"#1A73E8"},
-         {icon:"⏳",label:"Pending",value:stats.pending_samples||0,color:"#E07B12"},
-         {icon:"🚗",label:"Home Today",value:stats.home_today||0,color:"#7B2FBE"},
-        ].map(s=>h("div",{key:s.label,className:"card",style:{padding:"16px 18px"}},
-          h("div",{style:{fontSize:24,marginBottom:6}},s.icon),
-          h("div",{style:{fontSize:22,fontWeight:800,color:s.color}},s.value),
-          h("div",{style:{fontSize:12,color:"#8A9BB0"}},s.label)
-        ))
-      ),
-      h("div",{className:"card",style:{padding:22}},
-        h("h3",{style:{margin:"0 0 14px",color:"#0A1628"}},"Recent Samples"),
-        samples.slice(0,5).map(s=>h("div",{key:s.id,style:{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"10px 0",borderBottom:"1px solid #EDF1F5"}},
-          h("div",null,
-            h("div",{style:{fontWeight:600,fontSize:13,color:"#0A1628"}},s.patient_name||"Patient"),
-            h("div",{style:{fontSize:11,color:"#8A9BB0"}},s.sample_no+" · "+(s.test_codes||[]).join(", "))
-          ),
-          h(Badge,{label:s.status,color:statusColor[s.status]||"#8A9BB0"})
-        ))
-      )
-    );
-  }
-
-  function Samples() {
-    return h("div",null,
-      h("h2",{style:{margin:"0 0 20px",color:"#0A1628"}},"Sample Tracking"),
-      samples.length===0&&h(Spinner),
-      h("div",{className:"card",style:{overflowX:"auto"}},
-        h("table",{style:{width:"100%",borderCollapse:"collapse"}},
-          h("thead",null,
-            h("tr",{style:{background:"#0A1628"}},
-              ["Sample No","Patient","Tests","Status","Priority","Action"].map(col=>
-                h("th",{key:col,style:{color:"#fff",fontSize:11,fontWeight:700,padding:"10px 14px",textAlign:"left"}},col)
-              )
-            )
-          ),
-          h("tbody",null,
-            samples.map((s,i)=>h("tr",{key:s.id,style:{background:i%2?"#F5F8FA":"#fff"}},
-              h("td",{style:{padding:"12px 14px",fontSize:12,fontWeight:700,color:"#0D8A89"}},s.sample_no),
-              h("td",{style:{padding:"12px 14px",fontSize:13,color:"#0A1628"}},s.patient_name||"—"),
-              h("td",{style:{padding:"12px 14px",fontSize:12,color:"#4A5D72"}},(s.test_codes||[]).join(", ")),
-              h("td",{style:{padding:"12px 14px"}},h(Badge,{label:s.status,color:statusColor[s.status]||"#8A9BB0"})),
-              h("td",{style:{padding:"12px 14px"}},h(Badge,{label:s.priority||"Normal",color:s.priority==="Urgent"?"#DC3545":"#8A9BB0"})),
-              h("td",{style:{padding:"12px 14px"}},
-                s.status!=="Dispatched"&&s.status!=="Cancelled"&&
-                h("button",{onClick:()=>advanceSample(s.id,s.status),className:"btn",style:{background:"transparent",color:"#0D8A89",border:"2px solid #0D8A89",padding:"5px 10px",fontSize:11}},"Advance →")
-              )
-            ))
-          )
-        )
-      )
-    );
-  }
-
-  function Patients() {
-    const [patients,setPatients]=useState([]);
-    const [loading,setLoading]=useState(true);
-    useEffect(()=>{
-      api("GET","/api/patients?limit=20").then(d=>{
-        if(d.patients) setPatients(d.patients);
-        setLoading(false);
-      });
-    },[]);
-    return h("div",null,
-      h("h2",{style:{margin:"0 0 20px",color:"#0A1628"}},"Patient Management"),
-      loading&&h(Spinner),
-      h("div",{className:"card",style:{overflowX:"auto"}},
-        h("table",{style:{width:"100%",borderCollapse:"collapse"}},
-          h("thead",null,
-            h("tr",{style:{background:"#0A1628"}},
-              ["Patient No","Name","Age/Gender","Blood","Phone","Joined"].map(col=>
-                h("th",{key:col,style:{color:"#fff",fontSize:11,fontWeight:700,padding:"10px 14px",textAlign:"left"}},col)
-              )
-            )
-          ),
-          h("tbody",null,
-            patients.map((p,i)=>h("tr",{key:p.id,style:{background:i%2?"#F5F8FA":"#fff"}},
-              h("td",{style:{padding:"11px 14px",fontSize:12,fontWeight:700,color:"#0D8A89"}},p.patient_no),
-              h("td",{style:{padding:"11px 14px",fontSize:13,fontWeight:600,color:"#0A1628"}},p.name),
-              h("td",{style:{padding:"11px 14px",fontSize:12,color:"#4A5D72"}},(p.date_of_birth?new Date().getFullYear()-new Date(p.date_of_birth).getFullYear()+"yr":"—")+" / "+(p.gender||"—")),
-              h("td",{style:{padding:"11px 14px"}},p.blood_group&&h(Badge,{label:p.blood_group,color:"#DC3545"})),
-              h("td",{style:{padding:"11px 14px",fontSize:12,color:"#4A5D72"}},p.phone||"—"),
-              h("td",{style:{padding:"11px 14px",fontSize:11,color:"#8A9BB0"}},new Date(p.created_at).toLocaleDateString())
-            ))
-          )
-        )
-      )
-    );
-  }
-
-  function Billing() {
-    const total=bills.reduce((s,b)=>s+Number(b.total),0);
-    const collected=bills.filter(b=>b.paid).reduce((s,b)=>s+Number(b.total),0);
-    return h("div",null,
-      h("h2",{style:{margin:"0 0 20px",color:"#0A1628"}},"Billing Overview"),
-      h("div",{style:{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(140px,1fr))",gap:12,marginBottom:20}},
-        [{icon:"💰",label:"Total",value:"₹"+total,color:"#0D8A89"},
-         {icon:"✅",label:"Collected",value:"₹"+collected,color:"#198754"},
-         {icon:"⏳",label:"Outstanding",value:"₹"+(total-collected),color:"#DC3545"},
-         {icon:"🧾",label:"Invoices",value:bills.length,color:"#1A73E8"},
-        ].map(s=>h("div",{key:s.label,className:"card",style:{padding:"16px 18px"}},
-          h("div",{style:{fontSize:22,marginBottom:6}},s.icon),
-          h("div",{style:{fontSize:20,fontWeight:800,color:s.color}},s.value),
-          h("div",{style:{fontSize:12,color:"#8A9BB0"}},s.label)
-        ))
-      ),
-      h("div",{className:"card",style:{overflowX:"auto"}},
-        h("table",{style:{width:"100%",borderCollapse:"collapse"}},
-          h("thead",null,
-            h("tr",{style:{background:"#0A1628"}},
-              ["Invoice","Patient","Amount","Status","Action"].map(col=>
-                h("th",{key:col,style:{color:"#fff",fontSize:11,fontWeight:700,padding:"10px 14px",textAlign:"left"}},col)
-              )
-            )
-          ),
-          h("tbody",null,
-            bills.map((b,i)=>h("tr",{key:b.id,style:{background:i%2?"#F5F8FA":"#fff"}},
-              h("td",{style:{padding:"11px 14px",fontSize:12,fontWeight:700,color:"#0D8A89"}},b.invoice_no),
-              h("td",{style:{padding:"11px 14px",fontSize:13,color:"#0A1628"}},b.patient_name||"—"),
-              h("td",{style:{padding:"11px 14px",fontWeight:700,color:"#0A1628"}},"₹"+b.total),
-              h("td",{style:{padding:"11px 14px"}},h(Badge,{label:b.paid?"Paid":"Due",color:b.paid?"#198754":"#DC3545"})),
-              h("td",{style:{padding:"11px 14px"}},
-                !b.paid&&h("button",{onClick:()=>markPaid(b.id),className:"btn",style:{background:"#DC3545",color:"#fff",padding:"5px 12px",fontSize:11}},"Mark Paid")
-              )
-            ))
-          )
-        )
-      )
-    );
-  }
-
-  function ManageTests() {
-    const [tests,setTests]=useState([]);
-    const [loading,setLoading]=useState(true);
-    const [editing,setEditing]=useState(null);
-    const [form,setForm]=useState({name:"",category:"",price:"",turnaround_hrs:"",fasting_required:false});
-    const [adding,setAdding]=useState(false);
-
-    useEffect(()=>{
-      api("GET","/api/tests").then(d=>{
-        if(d.tests) setTests(d.tests);
-        setLoading(false);
-      });
-    },[]);
-
-    async function saveEdit(id) {
-      const data = await api("PUT","/api/tests/"+id,{
-        name:form.name,
-        category:form.category,
-        price:Number(form.price),
-        turnaround_hrs:Number(form.turnaround_hrs),
-        fasting_required:form.fasting_required,
-        is_active:true
-      });
-      if(data.test) {
-        setTests(prev=>prev.map(t=>t.id===id?data.test:t));
-        setEditing(null);
-        alert("Test updated!");
-      } else {
-        alert("Update failed: "+JSON.stringify(data.error));
-      }
-    }
-
-    async function toggleActive(test) {
-      const data = await api("PUT","/api/tests/"+test.id,{
-        name:test.name,
-        category:test.category,
-        price:Number(test.price),
-        turnaround_hrs:Number(test.turnaround_hrs),
-        fasting_required:test.fasting_required,
-        is_active:!test.is_active
-      });
-      if(data.test) setTests(prev=>prev.map(t=>t.id===test.id?data.test:t));
-    }
-
-    async function addTest() {
-      const data = await api("POST","/api/tests",{
-        code:form.name.substring(0,6).toUpperCase().replace(/\s/g,""),
-        name:form.name,
-        category:form.category,
-        price:Number(form.price),
-        turnaround_hrs:Number(form.turnaround_hrs)||6,
-        fasting_required:form.fasting_required
-      });
-      if(data.test) {
-        setTests(prev=>[...prev,data.test]);
-        setAdding(false);
-        setForm({name:"",category:"",price:"",turnaround_hrs:"",fasting_required:false});
-        alert("Test added!");
-      } else {
-        alert("Failed: "+JSON.stringify(data.error));
-      }
-    }
-
-    const inp={width:"100%",padding:"8px 11px",borderRadius:8,border:"1.5px solid #D4DCE8",fontSize:13,outline:"none",fontFamily:"inherit",boxSizing:"border-box",marginBottom:8};
-
-    return h("div",null,
-      h("div",{style:{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:20}},
-        h("h2",{style:{color:"#0A1628"}},"Manage Tests"),
-        h("button",{onClick:()=>{setAdding(!adding);setForm({name:"",category:"",price:"",turnaround_hrs:"6",fasting_required:false});},className:"btn",style:{background:"#0D8A89",color:"#fff",padding:"8px 18px",fontSize:13}},adding?"Cancel":"+ Add New Test")
-      ),
-
-      adding&&h("div",{className:"card",style:{padding:22,marginBottom:20,border:"2px solid #0D8A89"}},
-        h("h3",{style:{margin:"0 0 14px",color:"#0D8A89"}},"Add New Test"),
-        h("input",{value:form.name,onChange:e=>setForm({...form,name:e.target.value}),placeholder:"Test Name *",style:inp}),
-        h("input",{value:form.category,onChange:e=>setForm({...form,category:e.target.value}),placeholder:"Category (e.g. Hematology) *",style:inp}),
-        h("input",{type:"number",value:form.price,onChange:e=>setForm({...form,price:e.target.value}),placeholder:"Price (₹) *",style:inp}),
-        h("input",{type:"number",value:form.turnaround_hrs,onChange:e=>setForm({...form,turnaround_hrs:e.target.value}),placeholder:"Turnaround Hours",style:inp}),
-        h("label",{style:{display:"flex",alignItems:"center",gap:8,marginBottom:12,fontSize:13,color:"#4A5D72",cursor:"pointer"}},
-          h("input",{type:"checkbox",checked:form.fasting_required,onChange:e=>setForm({...form,fasting_required:e.target.checked}),style:{width:16,height:16}}),
-          "Fasting Required"
-        ),
-        h("button",{onClick:addTest,className:"btn",style:{background:"#D4A843",color:"#0A1628",padding:"9px 20px"}},"Save Test ✓")
-      ),
-
-      loading&&h("div",{className:"loading"},"⏳ Loading tests..."),
-      h("div",{className:"card",style:{overflow:"hidden"}},
-        h("table",{style:{width:"100%",borderCollapse:"collapse"}},
-          h("thead",null,
-            h("tr",{style:{background:"#0A1628"}},
-              ["Test Name","Category","Price","TAT","Fasting","Status","Actions"].map(col=>
-                h("th",{key:col,style:{color:"#fff",fontSize:11,fontWeight:700,padding:"10px 12px",textAlign:"left"}},col)
-              )
-            )
-          ),
-          h("tbody",null,
-            tests.map((t,i)=>
-              editing===t.id
-              ? h("tr",{key:t.id,style:{background:"#E5F7F7"}},
-                  h("td",{style:{padding:"8px 12px"},colSpan:7},
-                    h("div",{style:{display:"grid",gridTemplateColumns:"2fr 1fr 1fr 1fr",gap:8,marginBottom:8}},
-                      h("input",{value:form.name,onChange:e=>setForm({...form,name:e.target.value}),placeholder:"Test Name",style:{...inp,marginBottom:0}}),
-                      h("input",{value:form.category,onChange:e=>setForm({...form,category:e.target.value}),placeholder:"Category",style:{...inp,marginBottom:0}}),
-                      h("input",{type:"number",value:form.price,onChange:e=>setForm({...form,price:e.target.value}),placeholder:"Price",style:{...inp,marginBottom:0}}),
-                      h("input",{type:"number",value:form.turnaround_hrs,onChange:e=>setForm({...form,turnaround_hrs:e.target.value}),placeholder:"Hours",style:{...inp,marginBottom:0}})
-                    ),
-                    h("div",{style:{display:"flex",gap:8,alignItems:"center"}},
-                      h("label",{style:{display:"flex",alignItems:"center",gap:6,fontSize:12,cursor:"pointer"}},
-                        h("input",{type:"checkbox",checked:form.fasting_required,onChange:e=>setForm({...form,fasting_required:e.target.checked})}),
-                        "Fasting"
-                      ),
-                      h("button",{onClick:()=>saveEdit(t.id),className:"btn",style:{background:"#198754",color:"#fff",padding:"6px 14px",fontSize:12}},"Save ✓"),
-                      h("button",{onClick:()=>setEditing(null),className:"btn",style:{background:"#EDF1F5",color:"#4A5D72",padding:"6px 14px",fontSize:12}},"Cancel")
-                    )
-                  )
-                )
-              : h("tr",{key:t.id,style:{background:i%2?"#F5F8FA":"#fff",opacity:t.is_active?1:0.5}},
-                  h("td",{style:{padding:"11px 12px",fontSize:13,fontWeight:600,color:"#0A1628"}},t.name),
-                  h("td",{style:{padding:"11px 12px",fontSize:12,color:"#4A5D72"}},t.category),
-                  h("td",{style:{padding:"11px 12px",fontWeight:700,color:"#0A1628"}},"₹"+t.price),
-                  h("td",{style:{padding:"11px 12px",fontSize:12,color:"#4A5D72"}},t.turnaround_hrs+"h"),
-                  h("td",{style:{padding:"11px 12px",fontSize:12}},t.fasting_required?"⚠️ Yes":"No"),
-                  h("td",{style:{padding:"11px 12px"}},
-                    h("span",{style:{background:(t.is_active?"#198754":"#DC3545")+"22",color:t.is_active?"#198754":"#DC3545",border:"1px solid "+(t.is_active?"#198754":"#DC3545")+"44",padding:"2px 10px",borderRadius:20,fontSize:11,fontWeight:700}},t.is_active?"Active":"Inactive")
-                  ),
-                  h("td",{style:{padding:"11px 12px"}},
-                    h("div",{style:{display:"flex",gap:6}},
-                      h("button",{onClick:()=>{setEditing(t.id);setForm({name:t.name,category:t.category,price:t.price,turnaround_hrs:t.turnaround_hrs,fasting_required:t.fasting_required});},className:"btn",style:{background:"transparent",color:"#0D8A89",border:"2px solid #0D8A89",padding:"4px 10px",fontSize:11}},"Edit"),
-                      h("button",{onClick:()=>toggleActive(t),className:"btn",style:{background:t.is_active?"#FFF0F1":"#F0FFF5",color:t.is_active?"#DC3545":"#198754",border:"2px solid "+(t.is_active?"#DC3545":"#198754"),padding:"4px 10px",fontSize:11}},t.is_active?"Disable":"Enable")
-                    )
-                  )
-                )
-            )
-          )
-        )
-      )
-    );
-  }
-
-  const pages={dashboard:h(Dashboard),samples:h(Samples),patients:h(Patients),billing:h(Billing),tests:h(ManageTests)};
-  return h("div",{style:{display:"flex",minHeight:"100vh"}},
-    h(Sidebar,{nav,active,setActive,user,onLogout,color:"#1A3356"}),
-    h("div",{style:{flex:1,padding:28,overflowY:"auto",maxHeight:"100vh"}},pages[active]||pages.dashboard)
-  );
-}
-
-function TechApp({user,onLogout}) {
-  const [active,setActive]=useState("dashboard");
-  const [samples,setSamples]=useState([]);
-  const nav=[{id:"dashboard",icon:"🏠",label:"Dashboard"},{id:"results",icon:"📝",label:"Result Entry"}];
-  const statusColor={Pending:"#E07B12",Collected:"#1A73E8",Processing:"#0D8A89",Reported:"#7B2FBE",Dispatched:"#198754"};
-
-  useEffect(()=>{
-    api("GET","/api/samples?status=Processing&limit=20").then(d=>{ if(d.samples) setSamples(d.samples); });
-  },[]);
-
-  async function markReported(id) {
-    const data=await api("PATCH","/api/samples/"+id+"/status",{status:"Reported"});
-    if(data.sample) setSamples(prev=>prev.map(s=>s.id===id?{...s,status:"Reported"}:s));
-  }
-
-  function Dashboard() {
-    return h("div",null,
-      h("h2",{style:{margin:"0 0 20px",color:"#0A1628"}},"Good morning, "+user.name.split(" ")[0]+" 👋"),
-      h("div",{style:{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(140px,1fr))",gap:12,marginBottom:22}},
-        [{icon:"🧪",label:"Processing",value:samples.filter(s=>s.status==="Processing").length,color:"#0D8A89"},
-         {icon:"⚡",label:"Urgent",value:samples.filter(s=>s.priority==="Urgent").length,color:"#DC3545"},
-         {icon:"✅",label:"Reported",value:samples.filter(s=>s.status==="Reported").length,color:"#198754"},
-        ].map(s=>h("div",{key:s.label,className:"card",style:{padding:"16px 18px"}},
-          h("div",{style:{fontSize:24,marginBottom:6}},s.icon),
-          h("div",{style:{fontSize:22,fontWeight:800,color:s.color}},s.value),
-          h("div",{style:{fontSize:12,color:"#8A9BB0"}},s.label)
-        ))
-      ),
-      h("div",{className:"card",style:{padding:22}},
-        h("h3",{style:{margin:"0 0 14px",color:"#0A1628"}},"My Sample Queue"),
-        samples.length===0&&h("p",{style:{color:"#8A9BB0",fontSize:13}},"No samples in queue."),
-        samples.map(s=>h("div",{key:s.id,style:{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"11px 0",borderBottom:"1px solid #EDF1F5"}},
-          h("div",null,
-            h("div",{style:{fontWeight:700,fontSize:13,color:"#0A1628"}},s.sample_no+" · "+(s.patient_name||"Patient")),
-            h("div",{style:{fontSize:11,color:"#8A9BB0"}},(s.test_codes||[]).join(", "))
-          ),
-          h("div",{style:{display:"flex",gap:8,alignItems:"center"}},
-            s.priority==="Urgent"&&h(Badge,{label:"URGENT",color:"#DC3545"}),
-            h(Badge,{label:s.status,color:statusColor[s.status]||"#8A9BB0"}),
-            s.status==="Processing"&&h("button",{onClick:()=>markReported(s.id),className:"btn",style:{background:"#198754",color:"#fff",padding:"5px 12px",fontSize:11}},"Mark Reported")
-          )
-        ))
-      )
-    );
-  }
-
-  const pages={dashboard:h(Dashboard),results:h(Dashboard)};
-  return h("div",{style:{display:"flex",minHeight:"100vh"}},
-    h(Sidebar,{nav,active,setActive,user,onLogout,color:"#7B2FBE"}),
-    h("div",{style:{flex:1,padding:28,overflowY:"auto",maxHeight:"100vh"}},pages[active]||pages.dashboard)
-  );
-}
-
-function DoctorApp({user,onLogout}) {
-  const [active,setActive]=useState("dashboard");
-  const [samples,setSamples]=useState([]);
-  const nav=[{id:"dashboard",icon:"🏠",label:"Dashboard"},{id:"patients",icon:"👥",label:"Patients"}];
-
-  useEffect(()=>{
-    api("GET","/api/samples?status=Reported&limit=20").then(d=>{ if(d.samples) setSamples(d.samples); });
-  },[]);
-
-  async function signReport(sampleId) {
-    const data=await api("PATCH","/api/samples/"+sampleId+"/status",{status:"Dispatched",notes:"Reviewed and approved by "+user.name});
-    if(data.sample) setSamples(prev=>prev.map(s=>s.id===sampleId?{...s,status:"Dispatched"}:s));
-    else alert("Signed! (Demo mode)");
-  }
-
-  function Dashboard() {
-    return h("div",null,
-      h("h2",{style:{margin:"0 0 20px",color:"#0A1628"}},"Doctor Dashboard"),
-      h("div",{style:{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(140px,1fr))",gap:12,marginBottom:22}},
-        [{icon:"📄",label:"To Review",value:samples.length,color:"#E07B12"},
-         {icon:"✅",label:"Signed",value:"—",color:"#198754"},
-         {icon:"⚠️",label:"Critical",value:"0",color:"#DC3545"},
-        ].map(s=>h("div",{key:s.label,className:"card",style:{padding:"16px 18px"}},
-          h("div",{style:{fontSize:24,marginBottom:6}},s.icon),
-          h("div",{style:{fontSize:22,fontWeight:800,color:s.color}},s.value),
-          h("div",{style:{fontSize:12,color:"#8A9BB0"}},s.label)
-        ))
-      ),
-      h("div",{className:"card",style:{padding:22}},
-        h("h3",{style:{margin:"0 0 14px",color:"#0A1628"}},"Pending Sign-off"),
-        samples.length===0&&h("p",{style:{color:"#8A9BB0",fontSize:13}},"No reports pending review."),
-        samples.map(s=>h("div",{key:s.id,style:{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"12px 0",borderBottom:"1px solid #EDF1F5",flexWrap:"wrap",gap:8}},
-          h("div",null,
-            h("div",{style:{fontWeight:700,fontSize:13,color:"#0A1628"}},s.patient_name||"Patient"),
-            h("div",{style:{fontSize:11,color:"#8A9BB0"}},s.sample_no+" · "+(s.test_codes||[]).join(", "))
-          ),
-          h("div",{style:{display:"flex",gap:8}},
-            h("button",{className:"btn",style:{background:"transparent",color:"#0D8A89",border:"2px solid #0D8A89",padding:"6px 12px",fontSize:12}},"View"),
-            h("button",{onClick:()=>signReport(s.id),className:"btn",style:{background:"#198754",color:"#fff",padding:"6px 12px",fontSize:12}},"Sign & Dispatch ✓")
-          )
-        ))
-      )
-    );
-  }
-
-  const pages={dashboard:h(Dashboard),patients:h(Dashboard)};
-  return h("div",{style:{display:"flex",minHeight:"100vh"}},
-    h(Sidebar,{nav,active,setActive,user,onLogout,color:"#198754"}),
-    h("div",{style:{flex:1,padding:28,overflowY:"auto",maxHeight:"100vh"}},pages[active]||pages.dashboard)
-  );
-}
-
-function App() {
-  const [role,setRole]=useState(null);
-  const [user,setUser]=useState(null);
-  function handleLogin(u,back){
-    if(back){setRole(null);setUser(null);TOKEN=null;}
-    else setUser(u);
-  }
-  function handleLogout(){setUser(null);setRole(null);TOKEN=null;}
-  if(!role) return h(RoleSelect,{onSelect:setRole});
-  if(!user) return h(Login,{role,onLogin:handleLogin});
-  if(role==="Patient") return h(PatientApp,{user,onLogout:handleLogout});
-  if(role==="Admin") return h(AdminApp,{user,onLogout:handleLogout});
-  if(role==="Technician") return h(TechApp,{user,onLogout:handleLogout});
-  if(role==="Doctor") return h(DoctorApp,{user,onLogout:handleLogout});
-}
-
-const root=ReactDOM.createRoot(document.getElementById("root"));
-root.render(h(App,null));
-</script>
-</body>
-</html>

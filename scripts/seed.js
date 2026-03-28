@@ -13,6 +13,9 @@ async function seed() {
   try {
     await client.query("BEGIN");
 
+    await client.query("DELETE FROM staff WHERE staff_no IN ('STF-0001','STF-0002','STF-0003')");
+    await client.query("DELETE FROM patients WHERE address='12 Gandhi Nagar, Pune'");
+
     const tests = [
       ["CBC","Complete Blood Count","Hematology",350,4,false],
       ["LFT","Liver Function Test","Biochemistry",650,6,true],
@@ -44,11 +47,10 @@ async function seed() {
       ON CONFLICT(email) DO NOTHING`, [adminHash]);
     const { rows: [adminUser] } = await client.query(
       "SELECT id FROM users WHERE email='admin@medpath.com'");
-    const {rows:existingAdmin} = await client.query("SELECT id FROM staff WHERE staff_no='STF-0001'");
-if(!existingAdmin.length) {
-  await client.query(`INSERT INTO staff(user_id,staff_no,designation,department,joined_date)
-    VALUES($1,'STF-0001','Administrator','Management','2020-01-01')`, [adminUser.id]);
-}
+    await client.query(`
+      INSERT INTO staff(user_id,staff_no,designation,department,joined_date)
+      VALUES($1,'STF-0001','Administrator','Management','2020-01-01')`,
+      [adminUser.id]);
 
     const docHash = await bcrypt.hash("doc123", 12);
     await client.query(`
@@ -59,8 +61,8 @@ if(!existingAdmin.length) {
       "SELECT id FROM users WHERE email='anita@medpath.com'");
     await client.query(`
       INSERT INTO staff(user_id,staff_no,designation,department,qualification,joined_date)
-      VALUES($1,'STF-0002','Senior Pathologist','Pathology','MD Pathology','2020-06-01')
-      ON CONFLICT(staff_no) DO NOTHING`, [docUser.id]);
+      VALUES($1,'STF-0002','Senior Pathologist','Pathology','MD Pathology','2020-06-01')`,
+      [docUser.id]);
 
     const techHash = await bcrypt.hash("tech123", 12);
     await client.query(`
@@ -71,8 +73,8 @@ if(!existingAdmin.length) {
       "SELECT id FROM users WHERE email='suresh@medpath.com'");
     await client.query(`
       INSERT INTO staff(user_id,staff_no,designation,department,joined_date)
-      VALUES($1,'STF-0003','Lab Technician','Biochemistry','2021-06-15')
-      ON CONFLICT(staff_no) DO NOTHING`, [techUser.id]);
+      VALUES($1,'STF-0003','Lab Technician','Biochemistry','2021-06-15')`,
+      [techUser.id]);
 
     const patHash = await bcrypt.hash("0000", 12);
     await client.query(`
@@ -86,8 +88,8 @@ if(!existingAdmin.length) {
     const patNo = "PAT-"+String(val).padStart(4,"0");
     await client.query(`
       INSERT INTO patients(user_id,patient_no,date_of_birth,gender,blood_group,address)
-      VALUES($1,$2,'1983-06-15','Male','B+','12 Gandhi Nagar, Pune')
-      ON CONFLICT(user_id) DO NOTHING`, [patUser.id, patNo]);
+      VALUES($1,$2,'1983-06-15','Male','B+','12 Gandhi Nagar, Pune')`,
+      [patUser.id, patNo]);
 
     await client.query("COMMIT");
     console.log("Seed complete!");

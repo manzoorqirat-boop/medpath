@@ -195,10 +195,13 @@ label{font-size:11px;color:var(--t2);font-weight:500;letter-spacing:.03em;displa
   .stat-grid{grid-template-columns:repeat(2,1fr);gap:10px;}
   .form-grid{grid-template-columns:1fr;}
   .test-grid{grid-template-columns:repeat(auto-fill,minmax(148px,1fr));}
-  .card{padding:16px;}
+  .card{padding:14px;}
   .topbar-right{display:none!important;}
   .bottom-nav{display:block;}
   .mob-topbar{display:flex!important;}
+  .page-title{font-size:20px;}
+  .stat-val{font-size:22px;}
+  .glass-table{min-width:580px;}
 }
 .mob-topbar{display:none;position:fixed;top:0;left:0;right:0;height:56px;background:var(--surface);border-bottom:1px solid var(--b2);z-index:49;padding:0 16px;align-items:center;justify-content:space-between;box-shadow:0 1px 8px rgba(0,0,0,.06);}
 </style>
@@ -781,12 +784,12 @@ function AdminApp({user,onLogout}) {
 
     return h("div",{className:"fade-in"},
       h("div",{className:"page-header"},
-        h("div",{style:{display:"flex",justifyContent:"space-between",alignItems:"flex-start"}},
+        h("div",{style:{display:"flex",justifyContent:"space-between",alignItems:"flex-start",flexWrap:"wrap",gap:10}},
           h("div",null,
             h("div",{className:"page-title"},"Manage Tests"),
             h("div",{className:"page-sub"},tests.length+" tests in catalogue")
           ),
-          h("button",{onClick:()=>{setAdding(!adding);setForm({name:"",category:"",price:"",turnaround_hrs:"6",fasting_required:false});},className:"btn primary",style:{width:"auto",padding:"9px 20px"}},adding?"Cancel":"+ Add Test")
+          h("button",{onClick:()=>{setAdding(!adding);setForm({name:"",category:"",price:"",turnaround_hrs:"6",fasting_required:false});},className:"btn primary",style:{width:"auto",padding:"9px 20px",flexShrink:0}},adding?"Cancel":"+ Add Test")
         )
       ),
       adding&&h("div",{className:"card",style:{border:"2px solid var(--p-light)",marginBottom:16}},

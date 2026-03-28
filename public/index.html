@@ -4,28 +4,348 @@
   <meta charset="UTF-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>MedPath Lab</title>
-  <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
-  <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
-  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  <script src="https://unpkg.com/react@18/umd/react.development.js"></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
   <style>
-    * { margin:0; padding:0; box-sizing:border-box; }
-    body { font-family: Georgia, serif; background: #F5F8FA; }
-    #loading { display:flex; alignItems:center; justifyContent:center; height:100vh; flexDirection:column; }
+    *{margin:0;padding:0;box-sizing:border-box;}
+    body{font-family:Georgia,serif;background:#F5F8FA;}
+    .btn{border:none;border-radius:9px;cursor:pointer;font-family:inherit;font-weight:700;padding:11px 24px;font-size:14px;}
+    .card{background:#fff;border-radius:14px;border:1px solid #D4DCE8;box-shadow:0 2px 12px #0A162810;}
   </style>
 </head>
 <body>
-  <div id="loading" style="display:flex;align-items:center;justify-content:center;height:100vh;flex-direction:column;">
-    <div style="font-size:60px;">🔬</div>
-    <h2 style="color:#0A1628;margin-top:16px;">MedPath LIS</h2>
-    <p style="color:#8A9BB0;margin-top:8px;">Loading application...</p>
-  </div>
-  <div id="root"></div>
-  <script>
-    // Load app.js after page renders
-    window.addEventListener("load", function() {
-      document.getElementById("loading").style.display = "none";
-    });
-  </script>
-  <script src="/app.js" type="text/babel" data-presets="react"></script>
+<div id="root"></div>
+<script>
+const {useState,createElement:h} = React;
+
+const TESTS = [
+  {id:"CBC",name:"Complete Blood Count",price:350,cat:"Hematology"},
+  {id:"LFT",name:"Liver Function Test",price:650,cat:"Biochemistry"},
+  {id:"KFT",name:"Kidney Function Test",price:600,cat:"Biochemistry"},
+  {id:"TSH",name:"Thyroid Profile",price:800,cat:"Endocrinology"},
+  {id:"LIPID",name:"Lipid Profile",price:550,cat:"Biochemistry"},
+  {id:"HBA1C",name:"HbA1c",price:480,cat:"Diabetes"},
+  {id:"URINE",name:"Urine Routine",price:200,cat:"Microbiology"},
+  {id:"ECG",name:"ECG",price:300,cat:"Cardiology"},
+  {id:"DENG",name:"Dengue NS1/IgM/IgG",price:900,cat:"Serology"},
+  {id:"COVID",name:"COVID-19 RT-PCR",price:500,cat:"Molecular"},
+];
+
+function RoleSelect({onSelect}) {
+  const roles = [
+    {id:"Patient",icon:"🧑‍⚕️",label:"Patient Portal"},
+    {id:"Admin",icon:"🏥",label:"Admin Dashboard"},
+    {id:"Technician",icon:"🔬",label:"Lab Technician"},
+    {id:"Doctor",icon:"👨‍⚕️",label:"Doctor Panel"},
+  ];
+  return h("div",{style:{minHeight:"100vh",background:"linear-gradient(135deg,#0A1628,#0d4a4a)",display:"flex",alignItems:"center",justifyContent:"center",padding:24}},
+    h("div",{style:{textAlign:"center",width:"100%",maxWidth:600}},
+      h("div",{style:{fontSize:64,marginBottom:12}},"🔬"),
+      h("h1",{style:{color:"#D4A843",fontSize:36,fontWeight:400,margin:0,letterSpacing:2}},"MedPath LIS"),
+      h("p",{style:{color:"#8BB8D4",marginTop:8,marginBottom:36,fontSize:15}},"Laboratory Information System"),
+      h("div",{style:{display:"grid",gridTemplateColumns:"1fr 1fr",gap:14,maxWidth:400,margin:"0 auto"}},
+        roles.map(r=>h("button",{key:r.id,onClick:()=>onSelect(r.id),style:{background:"#ffffff10",border:"1.5px solid #ffffff25",borderRadius:14,padding:"24px 16px",cursor:"pointer",color:"#fff",fontFamily:"inherit",textAlign:"center",width:"100%"}},
+          h("div",{style:{fontSize:36,marginBottom:8}},r.icon),
+          h("div",{style:{fontWeight:700,fontSize:14,color:"#D4A843"}},r.label)
+        ))
+      )
+    )
+  );
+}
+
+function Login({role,onLogin}) {
+  const [pw,setPw] = useState("");
+  const [phone,setPhone] = useState("");
+  const [otp,setOtp] = useState("");
+  const [step,setStep] = useState(1);
+  const creds = {Admin:"admin",Technician:"tech123",Doctor:"doc123"};
+  const users = {
+    Admin:{name:"Admin User",id:"ADM001",role:"Admin"},
+    Technician:{name:"Suresh T.",id:"STF002",role:"Technician"},
+    Doctor:{name:"Dr. Anita Sharma",id:"STF001",role:"Doctor"},
+  };
+
+  return h("div",{style:{minHeight:"100vh",background:"linear-gradient(135deg,#0A1628,#0d4a4a)",display:"flex",alignItems:"center",justifyContent:"center",padding:20}},
+    h("div",{className:"card",style:{width:360,padding:36}},
+      h("div",{style:{textAlign:"center",marginBottom:24}},
+        h("div",{style:{fontSize:36}},"🔬"),
+        h("h2",{style:{margin:"8px 0 4px",color:"#0A1628"}},"MedPath LIS"),
+        h("span",{style:{background:"#E5F7F7",color:"#0D8A89",padding:"3px 12px",borderRadius:20,fontSize:12,fontWeight:700}},role+" Login")
+      ),
+      role==="Patient" && step===1 && h("div",null,
+        h("label",{style:{display:"block",fontSize:11,fontWeight:700,color:"#4A5D72",marginBottom:5,textTransform:"uppercase"}},"Mobile Number"),
+        h("input",{value:phone,onChange:e=>setPhone(e.target.value),placeholder:"+91 9XXXXXXXXX",style:{width:"100%",padding:"10px 13px",borderRadius:9,border:"1.5px solid #D4DCE8",fontSize:14,outline:"none",marginBottom:14,boxSizing:"border-box"}}),
+        h("button",{onClick:()=>setStep(2),className:"btn",style:{width:"100%",background:"#0D8A89",color:"#fff"}},"Send OTP")
+      ),
+      role==="Patient" && step===2 && h("div",null,
+        h("p",{style:{fontSize:13,color:"#4A5D72",marginBottom:16}},`OTP sent to ${phone||"+91 98765 43210"}`),
+        h("label",{style:{display:"block",fontSize:11,fontWeight:700,color:"#4A5D72",marginBottom:5,textTransform:"uppercase"}},"Enter OTP"),
+        h("input",{value:otp,onChange:e=>setOtp(e.target.value),placeholder:"123456",style:{width:"100%",padding:"10px 13px",borderRadius:9,border:"1.5px solid #D4DCE8",fontSize:14,outline:"none",marginBottom:14,boxSizing:"border-box"}}),
+        h("button",{onClick:()=>onLogin({name:"Rajesh Kumar",id:"PAT001",role:"Patient"}),className:"btn",style:{width:"100%",background:"#0D8A89",color:"#fff"}},"Verify & Login"),
+        h("p",{style:{textAlign:"center",fontSize:12,color:"#0D8A89",marginTop:12,cursor:"pointer"},onClick:()=>setStep(1)},"← Change Number")
+      ),
+      role!=="Patient" && h("div",null,
+        h("label",{style:{display:"block",fontSize:11,fontWeight:700,color:"#4A5D72",marginBottom:5,textTransform:"uppercase"}},"Password"),
+        h("input",{type:"password",value:pw,onChange:e=>setPw(e.target.value),placeholder:"Enter password",style:{width:"100%",padding:"10px 13px",borderRadius:9,border:"1.5px solid #D4DCE8",fontSize:14,outline:"none",marginBottom:8,boxSizing:"border-box"}}),
+        h("p",{style:{fontSize:12,color:"#8A9BB0",marginBottom:14}},`Demo: ${creds[role]}`),
+        h("button",{onClick:()=>{if(pw===creds[role])onLogin(users[role]);},className:"btn",style:{width:"100%",background:"#0D8A89",color:"#fff"}},"Login")
+      ),
+      h("p",{style:{textAlign:"center",fontSize:12,color:"#0D8A89",marginTop:16,cursor:"pointer"},onClick:()=>onLogin(null,true)},"← Back")
+    )
+  );
+}
+
+function Sidebar({nav,active,setActive,user,onLogout,color}) {
+  return h("div",{style:{width:200,minHeight:"100vh",background:"#0A1628",display:"flex",flexDirection:"column",padding:"0 0 20px",flexShrink:0}},
+    h("div",{style:{padding:"20px 18px 16px",borderBottom:"1px solid #ffffff18"}},
+      h("div",{style:{fontSize:24}},"🔬"),
+      h("div",{style:{color:"#D4A843",fontWeight:700,fontSize:16,marginTop:4}},"MedPath")
+    ),
+    h("div",{style:{flex:1,padding:"12px 8px"}},
+      nav.map(n=>h("button",{key:n.id,onClick:()=>setActive(n.id),style:{width:"100%",display:"flex",alignItems:"center",gap:10,padding:"10px 12px",borderRadius:9,marginBottom:3,border:"none",cursor:"pointer",fontFamily:"inherit",background:active===n.id?color:"transparent",color:active===n.id?"#fff":"#ffffff70",fontWeight:active===n.id?700:400,fontSize:13,textAlign:"left"}},
+        h("span",{style:{fontSize:16}},n.icon),n.label
+      ))
+    ),
+    h("div",{style:{padding:"12px 16px",borderTop:"1px solid #ffffff18"}},
+      h("div",{style:{color:"#fff",fontSize:12,fontWeight:600,marginBottom:8}},user.name),
+      h("button",{onClick:onLogout,style:{background:"#ffffff15",border:"none",color:"#fff",borderRadius:8,padding:"7px 12px",cursor:"pointer",fontSize:11,width:"100%",fontFamily:"inherit"}},"Sign Out")
+    )
+  );
+}
+
+function PatientApp({user,onLogout}) {
+  const [active,setActive] = useState("dashboard");
+  const [cart,setCart] = useState([]);
+  const nav = [
+    {id:"dashboard",icon:"🏠",label:"Dashboard"},
+    {id:"tests",icon:"🧪",label:"Book Tests"},
+    {id:"reports",icon:"📄",label:"Reports"},
+    {id:"billing",icon:"💳",label:"Billing"},
+    {id:"family",icon:"👨‍👩‍👧",label:"Family"},
+  ];
+
+  const total = cart.reduce((s,t)=>s+t.price,0);
+
+  function Dashboard() {
+    return h("div",null,
+      h("h2",{style:{margin:"0 0 6px",color:"#0A1628"}},"Good morning, "+user.name.split(" ")[0]+" 👋"),
+      h("p",{style:{color:"#8A9BB0",fontSize:13,marginBottom:24}},"Patient ID: "+user.id),
+      h("div",{style:{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(150px,1fr))",gap:14,marginBottom:24}},
+        [{icon:"🧪",label:"Tests Booked",value:"8",color:"#0D8A89"},
+         {icon:"📄",label:"Reports Ready",value:"3",color:"#198754"},
+         {icon:"💳",label:"Pending",value:"₹800",color:"#E07B12"},
+        ].map(s=>h("div",{key:s.label,className:"card",style:{padding:"18px 20px"}},
+          h("div",{style:{fontSize:26,marginBottom:6}},s.icon),
+          h("div",{style:{fontSize:24,fontWeight:800,color:s.color}},s.value),
+          h("div",{style:{fontSize:12,color:"#8A9BB0"}},s.label)
+        ))
+      ),
+      h("div",{className:"card",style:{padding:22}},
+        h("h3",{style:{margin:"0 0 14px",color:"#0A1628"}},"Quick Actions"),
+        nav.filter(n=>n.id!=="dashboard").map(n=>h("button",{key:n.id,onClick:()=>setActive(n.id),style:{width:"100%",display:"flex",alignItems:"center",gap:12,padding:"11px 14px",borderRadius:9,border:"1px solid #EDF1F5",background:"#F5F8FA",cursor:"pointer",marginBottom:8,fontFamily:"inherit",fontWeight:600,fontSize:13,color:"#0A1628",textAlign:"left"}},
+          h("span",{style:{fontSize:18}},n.icon),n.label,
+          h("span",{style:{marginLeft:"auto",color:"#0D8A89"}},"›")
+        ))
+      )
+    );
+  }
+
+  function Tests() {
+    const inCart = id=>cart.find(c=>c.id===id);
+    const toggle = t=>setCart(prev=>inCart(t.id)?prev.filter(c=>c.id!==t.id):[...prev,t]);
+    return h("div",null,
+      h("div",{style:{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:20,flexWrap:"wrap",gap:10}},
+        h("h2",{style:{color:"#0A1628"}},"Book Tests"),
+        cart.length>0&&h("div",{className:"card",style:{padding:"12px 16px",display:"flex",alignItems:"center",gap:14,border:"2px solid #0D8A89"}},
+          h("div",null,
+            h("div",{style:{fontSize:12,color:"#8A9BB0"}},cart.length+" test(s)"),
+            h("div",{style:{fontSize:18,fontWeight:800,color:"#0D8A89"}},"₹"+total)
+          ),
+          h("button",{className:"btn",style:{background:"#D4A843",color:"#0A1628",padding:"8px 16px",fontSize:13}},"Book Now")
+        )
+      ),
+      h("div",{style:{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(220px,1fr))",gap:12}},
+        TESTS.map(t=>{
+          const sel=inCart(t.id);
+          return h("div",{key:t.id,className:"card",onClick:()=>toggle(t),style:{padding:16,border:"2px solid "+(sel?"#0D8A89":"#D4DCE8"),background:sel?"#E5F7F7":"#fff",cursor:"pointer"}},
+            h("div",{style:{fontSize:11,fontWeight:700,color:"#0D8A89",marginBottom:6}},t.cat),
+            h("div",{style:{fontWeight:700,fontSize:14,color:"#0A1628",marginBottom:8}},t.name),
+            h("div",{style:{display:"flex",justifyContent:"space-between",alignItems:"center"}},
+              h("div",{style:{fontSize:20,fontWeight:800,color:sel?"#0D8A89":"#0A1628"}},"₹"+t.price),
+              h("div",{style:{width:24,height:24,borderRadius:"50%",border:"2px solid "+(sel?"#0D8A89":"#D4DCE8"),background:sel?"#0D8A89":"#fff",display:"flex",alignItems:"center",justifyContent:"center",color:sel?"#fff":"#8A9BB0",fontSize:14,fontWeight:700}},sel?"✓":"+")
+            )
+          );
+        })
+      )
+    );
+  }
+
+  function Reports() {
+    const reports=[{id:"R001",test:"CBC",date:"28 Mar 2025"},{id:"R002",test:"LFT",date:"20 Mar 2025"}];
+    return h("div",null,
+      h("h2",{style:{margin:"0 0 20px",color:"#0A1628"}},"My Reports"),
+      h("div",{style:{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(220px,1fr))",gap:14}},
+        reports.map(r=>h("div",{key:r.id,className:"card",style:{padding:20}},
+          h("div",{style:{fontWeight:700,fontSize:15,color:"#0A1628",marginBottom:4}},r.test),
+          h("div",{style:{fontSize:12,color:"#8A9BB0",marginBottom:14}},r.date),
+          h("div",{style:{display:"flex",gap:8}},
+            h("button",{className:"btn",style:{background:"#0D8A89",color:"#fff",padding:"6px 14px",fontSize:12}},"View"),
+            h("button",{className:"btn",style:{background:"transparent",color:"#0D8A89",border:"2px solid #0D8A89",padding:"6px 14px",fontSize:12}},"Download")
+          )
+        ))
+      )
+    );
+  }
+
+  function Billing() {
+    const bills=[
+      {id:"INV001",tests:"CBC, LFT",amount:1000,paid:true},
+      {id:"INV002",tests:"TSH",amount:800,paid:false},
+    ];
+    return h("div",null,
+      h("h2",{style:{margin:"0 0 20px",color:"#0A1628"}},"Billing"),
+      h("div",{className:"card",style:{padding:22}},
+        bills.map((b,i)=>h("div",{key:b.id,style:{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"14px 0",borderBottom:i<bills.length-1?"1px solid #EDF1F5":"none",flexWrap:"wrap",gap:8}},
+          h("div",null,
+            h("div",{style:{fontWeight:700,color:"#0A1628"}},b.id),
+            h("div",{style:{fontSize:12,color:"#8A9BB0"}},b.tests)
+          ),
+          h("div",{style:{display:"flex",gap:10,alignItems:"center"}},
+            h("div",{style:{fontWeight:800,color:"#0A1628"}},"₹"+b.amount),
+            h("span",{style:{background:(b.paid?"#198754":"#DC3545")+"22",color:b.paid?"#198754":"#DC3545",border:"1px solid "+(b.paid?"#198754":"#DC3545")+"44",padding:"2px 10px",borderRadius:20,fontSize:11,fontWeight:700}},b.paid?"Paid":"Due"),
+            !b.paid&&h("button",{className:"btn",style:{background:"#DC3545",color:"#fff",padding:"6px 14px",fontSize:12}},"Pay Now")
+          )
+        ))
+      )
+    );
+  }
+
+  function Family() {
+    return h("div",null,
+      h("h2",{style:{margin:"0 0 20px",color:"#0A1628"}},"Family Members"),
+      h("div",{style:{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(220px,1fr))",gap:14}},
+        [{name:"Priya Kumar",relation:"Wife",blood:"O+"},{name:"Rohan Kumar",relation:"Son",blood:"B+"}].map(m=>
+          h("div",{key:m.name,className:"card",style:{padding:20}},
+            h("div",{style:{width:44,height:44,borderRadius:"50%",background:"linear-gradient(135deg,#0D8A89,#0A1628)",display:"flex",alignItems:"center",justifyContent:"center",color:"#fff",fontSize:20,fontWeight:700,marginBottom:12}},m.name[0]),
+            h("div",{style:{fontWeight:700,color:"#0A1628"}},m.name),
+            h("div",{style:{fontSize:12,color:"#8A9BB0",marginBottom:10}},m.relation),
+            h("span",{style:{background:"#DC354522",color:"#DC3545",border:"1px solid #DC354544",padding:"2px 10px",borderRadius:20,fontSize:11,fontWeight:700}},"Blood: "+m.blood)
+          )
+        )
+      )
+    );
+  }
+
+  const pages={dashboard:h(Dashboard),tests:h(Tests),reports:h(Reports),billing:h(Billing),family:h(Family)};
+
+  return h("div",{style:{display:"flex",minHeight:"100vh"}},
+    h(Sidebar,{nav,active,setActive,user,onLogout,color:"#0D8A89"}),
+    h("div",{style:{flex:1,padding:28,overflowY:"auto",maxHeight:"100vh"}},pages[active])
+  );
+}
+
+function AdminApp({user,onLogout}) {
+  const [active,setActive] = useState("dashboard");
+  const nav=[
+    {id:"dashboard",icon:"🏠",label:"Dashboard"},
+    {id:"samples",icon:"🔬",label:"Samples"},
+    {id:"billing",icon:"💰",label:"Billing"},
+  ];
+
+  function Dashboard() {
+    return h("div",null,
+      h("h2",{style:{margin:"0 0 20px",color:"#0A1628"}},"Admin Dashboard"),
+      h("div",{style:{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(150px,1fr))",gap:14,marginBottom:24}},
+        [{icon:"🧪",label:"Today Samples",value:"5",color:"#0D8A89"},
+         {icon:"👥",label:"Patients",value:"124",color:"#1A73E8"},
+         {icon:"💰",label:"Revenue",value:"₹12,450",color:"#198754"},
+         {icon:"⏳",label:"Pending",value:"₹3,200",color:"#DC3545"},
+        ].map(s=>h("div",{key:s.label,className:"card",style:{padding:"18px 20px"}},
+          h("div",{style:{fontSize:26,marginBottom:6}},s.icon),
+          h("div",{style:{fontSize:22,fontWeight:800,color:s.color}},s.value),
+          h("div",{style:{fontSize:12,color:"#8A9BB0"}},s.label)
+        ))
+      )
+    );
+  }
+
+  function Samples() {
+    const [samples,setSamples]=useState([
+      {id:"SMP001",patient:"Rajesh Kumar",tests:"CBC,LFT",status:"Processing",priority:"Normal"},
+      {id:"SMP002",patient:"Priya Sharma",tests:"TSH",status:"Pending",priority:"Urgent"},
+      {id:"SMP003",patient:"Amit Verma",tests:"KFT",status:"Reported",priority:"Normal"},
+    ]);
+    const colors={Pending:"#E07B12",Collected:"#1A73E8",Processing:"#0D8A89",Reported:"#7B2FBE",Dispatched:"#198754"};
+    const order=["Pending","Collected","Processing","Reported","Dispatched"];
+    return h("div",null,
+      h("h2",{style:{margin:"0 0 20px",color:"#0A1628"}},"Sample Tracking"),
+      h("div",{className:"card",style:{overflow:"hidden"}},
+        h("div",{style:{display:"grid",gridTemplateColumns:"1fr 1.5fr 1fr 1fr 1fr",background:"#0A1628",padding:"10px 16px",gap:10}},
+          ["ID","Patient","Tests","Status","Action"].map(col=>h("div",{key:col,style:{color:"#fff",fontSize:11,fontWeight:700}},col))
+        ),
+        samples.map((s,i)=>h("div",{key:s.id,style:{display:"grid",gridTemplateColumns:"1fr 1.5fr 1fr 1fr 1fr",padding:"12px 16px",gap:10,background:i%2?"#F5F8FA":"#fff",alignItems:"center"}},
+          h("div",{style:{fontSize:12,fontWeight:700,color:"#0D8A89"}},s.id),
+          h("div",{style:{fontSize:13,color:"#0A1628"}},s.patient),
+          h("div",{style:{fontSize:12,color:"#4A5D72"}},s.tests),
+          h("span",{style:{background:(colors[s.status]||"#8A9BB0")+"22",color:colors[s.status]||"#8A9BB0",border:"1px solid "+(colors[s.status]||"#8A9BB0")+"44",padding:"2px 8px",borderRadius:20,fontSize:10,fontWeight:700}},s.status),
+          s.status!=="Dispatched"&&h("button",{onClick:()=>setSamples(prev=>prev.map(x=>{if(x.id!==s.id)return x;const next=order[order.indexOf(x.status)+1];return next?{...x,status:next}:x;})),className:"btn",style:{background:"transparent",color:"#0D8A89",border:"2px solid #0D8A89",padding:"5px 10px",fontSize:11}},"Advance →")
+        ))
+      )
+    );
+  }
+
+  const pages={dashboard:h(Dashboard),samples:h(Samples),billing:h("div",{style:{padding:20}},h("h2",{style:{color:"#0A1628"}},"Billing — Coming Soon"))};
+  return h("div",{style:{display:"flex",minHeight:"100vh"}},
+    h(Sidebar,{nav,active,setActive,user,onLogout,color:"#1A3356"}),
+    h("div",{style:{flex:1,padding:28,overflowY:"auto",maxHeight:"100vh"}},pages[active])
+  );
+}
+
+function TechApp({user,onLogout}) {
+  const nav=[{id:"dashboard",icon:"🏠",label:"Dashboard"},{id:"results",icon:"📝",label:"Results"}];
+  const [active,setActive]=useState("dashboard");
+  return h("div",{style:{display:"flex",minHeight:"100vh"}},
+    h(Sidebar,{nav,active,setActive,user,onLogout,color:"#7B2FBE"}),
+    h("div",{style:{flex:1,padding:28}},
+      h("h2",{style:{color:"#0A1628",marginBottom:20}},"Lab Technician Panel"),
+      h("div",{style:{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(150px,1fr))",gap:14}},
+        [{icon:"🧪",label:"Assigned",value:"4",color:"#7B2FBE"},{icon:"⚡",label:"Urgent",value:"1",color:"#DC3545"},{icon:"✅",label:"Done",value:"2",color:"#198754"}]
+        .map(s=>h("div",{key:s.label,className:"card",style:{padding:"18px 20px"}},h("div",{style:{fontSize:26,marginBottom:6}},s.icon),h("div",{style:{fontSize:22,fontWeight:800,color:s.color}},s.value),h("div",{style:{fontSize:12,color:"#8A9BB0"}},s.label)))
+      )
+    )
+  );
+}
+
+function DoctorApp({user,onLogout}) {
+  const nav=[{id:"dashboard",icon:"🏠",label:"Dashboard"}];
+  const [active,setActive]=useState("dashboard");
+  return h("div",{style:{display:"flex",minHeight:"100vh"}},
+    h(Sidebar,{nav,active,setActive,user,onLogout,color:"#198754"}),
+    h("div",{style:{flex:1,padding:28}},
+      h("h2",{style:{color:"#0A1628",marginBottom:20}},"Doctor Panel"),
+      h("div",{style:{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(150px,1fr))",gap:14}},
+        [{icon:"👥",label:"Patients",value:"24",color:"#0D8A89"},{icon:"📄",label:"To Review",value:"3",color:"#E07B12"},{icon:"✅",label:"Signed",value:"2",color:"#198754"}]
+        .map(s=>h("div",{key:s.label,className:"card",style:{padding:"18px 20px"}},h("div",{style:{fontSize:26,marginBottom:6}},s.icon),h("div",{style:{fontSize:22,fontWeight:800,color:s.color}},s.value),h("div",{style:{fontSize:12,color:"#8A9BB0"}},s.label)))
+      )
+    )
+  );
+}
+
+function App() {
+  const [role,setRole]=useState(null);
+  const [user,setUser]=useState(null);
+  function handleLogin(u,back){if(back){setRole(null);setUser(null);}else setUser(u);}
+  function handleLogout(){setUser(null);setRole(null);}
+  if(!role)return h(RoleSelect,{onSelect:setRole});
+  if(!user)return h(Login,{role,onLogin:handleLogin});
+  if(role==="Patient")return h(PatientApp,{user,onLogout:handleLogout});
+  if(role==="Admin")return h(AdminApp,{user,onLogout:handleLogout});
+  if(role==="Technician")return h(TechApp,{user,onLogout:handleLogout});
+  if(role==="Doctor")return h(DoctorApp,{user,onLogout:handleLogout});
+}
+
+const root=ReactDOM.createRoot(document.getElementById("root"));
+root.render(h(App,null));
+</script>
 </body>
 </html>

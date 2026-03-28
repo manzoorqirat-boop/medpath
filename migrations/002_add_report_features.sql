@@ -8,7 +8,3 @@ ALTER TABLE reports
 
 ALTER TABLE reports
   ADD COLUMN IF NOT EXISTS sent_whatsapp BOOLEAN NOT NULL DEFAULT false;
-
-INSERT INTO _migrations(filename)
-VALUES('002_add_report_features.sql')
-ON CONFLICT(filename) DO NOTHING;

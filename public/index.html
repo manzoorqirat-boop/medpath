@@ -86,8 +86,17 @@ function Login({role,onLogin}) {
     const data = await api("POST","/api/auth/otp/verify",{phone,otp});
     setLoading(false);
     if(otp === "123456") {
-  onLogin({name:"Patient",id:"PAT001",role:"Patient",patientId:null,phone:phone});
+  setLoading(true);
+  const data = await api("POST","/api/auth/otp/verify",{phone,otp:"123456"});
+  setLoading(false);
+  if(data.token) {
+    TOKEN = data.token;
+    onLogin({...data.user, patientId: data.user.patientId});
+  } else {
+    onLogin({name:"Patient",id:"PAT001",role:"Patient",patientId:null,phone:phone});
+  }
   return;
+}
 }
 if(data.error) setErr(data.error);
     else { TOKEN=data.token; onLogin({...data.user,patientId:data.user.patientId}); }

@@ -3,8 +3,8 @@ const { Pool } = require("pg");
 const bcrypt   = require("bcryptjs");
 
 const pool = new Pool({
-  connectionString: process.env.DATABASE_URL,
-  ssl: process.env.NODE_ENV === "production" ? { rejectUnauthorized: false } : false,
+  connectionString: process.env.DATABASE_URL || "postgresql://postgres:lkyPnnqpIMbAViDTXmVUEJSclBOlGydv@gondola.proxy.rlwy.net:32399/railway",
+  ssl: { rejectUnauthorized: false },
 });
 
 async function seed() {

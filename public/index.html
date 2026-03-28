@@ -85,13 +85,12 @@ function Login({role,onLogin}) {
     setLoading(true); setErr("");
     const data = await api("POST","/api/auth/otp/verify",{phone,otp});
     setLoading(false);
-    if(otp === "123456") {
-  onLogin({name:"Patient",id:"PAT001",role:"Patient",patientId:null,phone:phone});
-  return;
-}
-}
-if(data.error) setErr(data.error);
-    else { TOKEN=data.token; onLogin({...data.user,patientId:data.user.patientId}); }
+    if(data.error) {
+      setErr("Wrong OTP. Please use 123456");
+    } else {
+      TOKEN=data.token;
+      onLogin({...data.user,patientId:data.user.patientId});
+    }
   }
 
   async function staffLogin() {

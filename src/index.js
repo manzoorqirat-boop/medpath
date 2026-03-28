@@ -24,6 +24,15 @@ app.get("/", function(req, res) {
   res.sendFile(path.join(process.cwd(), "public", "index.html"));
 });
 
+app.get("/test", function(req, res) {
+  res.json({ 
+    cwd: process.cwd(),
+    exists: require("fs").existsSync(path.join(process.cwd(), "public", "index.html")),
+    files: require("fs").readdirSync(path.join(process.cwd(), "public")).join(", ")
+  });
+});
+});
+
 app.get("/health", async function(req, res) {
   const dbOk = await testConnection();
   res.status(dbOk ? 200 : 503).json({ status: dbOk ? "healthy" : "degraded" });

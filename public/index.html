@@ -1217,18 +1217,16 @@ function TechApp({user,onLogout}) {
     async function loadSample(s) {
       setSelected(s);setParams([]);setInputs({});setTechNotes("");setSavedMsg("");
       await updateStatus(s.id,"Processing");
-      // Load sample details to get test IDs
+      // Load sample with tests+parameters in one call
       const sd=await api("GET","/api/samples/"+s.id);
-      const testIds=(sd.sample?.test_ids)||[];
-      if(!testIds.length){setSavedMsg("No tests linked. Check sample_tests table.");return;}
-      const allP=[];
-      for(const tid of testIds){
-        const td=await api("GET","/api/tests/"+tid);
-        if(td.test?.parameters?.length)allP.push(td.test);
-      }
-      setParams(allP);
+      const tests=(sd.sample?.tests)||[];
+      if(!tests.length){setSavedMsg("No tests found for this sample. Ensure tests are booked correctly.");return;}
+      // Filter tests that have parameters configured
+      const withParams=tests.filter(t=>t.parameters&&t.parameters.length>0);
+      if(!withParams.length){setSavedMsg("Tests found but no parameters configured. Ask Admin to add parameters to these tests.");return;}
+      setParams(withParams);
       const ni={};
-      allP.forEach(t=>t.parameters.forEach(p=>{ni[p.id]={value:"",flag:"Normal",unit:p.unit||"",ref:p.range_text||"",param_name:p.param_name};}));
+      withParams.forEach(t=>t.parameters.forEach(p=>{ni[p.id]={value:"",flag:"Normal",unit:p.unit||"",ref:p.range_text||"",param_name:p.param_name};}));
       setInputs(ni);
     }
     function autoFlag(p,val){

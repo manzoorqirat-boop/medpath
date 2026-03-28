@@ -305,3 +305,551 @@ function Sidebar({nav,active,setActive,user,onLogout,gradient}) {
     )
   );
 }
+function PatientApp({user,onLogout}) {
+  const [active,setActive]=useState("dashboard");
+  const [cart,setCart]=useState([]);
+  const [tests,setTests]=useState([]);
+  const [samples,setSamples]=useState([]);
+  const [bills,setBills]=useState([]);
+  const nav=[
+    {id:"dashboard",icon:"🏠",label:"Dashboard"},
+    {id:"tests",icon:"🧪",label:"Book Tests"},
+    {id:"reports",icon:"📄",label:"Reports"},
+    {id:"billing",icon:"💳",label:"Billing"},
+    {id:"family",icon:"👨‍👩‍👧",label:"Family"},
+    {id:"profile",icon:"👤",label:"Profile"},
+  ];
+  const total=cart.reduce((s,t)=>s+Number(t.price),0);
+
+  useEffect(()=>{
+    api("GET","/api/tests").then(d=>{ if(d.tests) setTests(d.tests); });
+    if(user.patientId) {
+      api("GET","/api/samples?limit=10").then(d=>{ if(d.samples) setSamples(d.samples); });
+      api("GET","/api/billing").then(d=>{ if(d.invoices) setBills(d.invoices); });
+    }
+  },[]);
+
+  async function bookTests() {
+    if(!cart.length) return;
+    const data=await api("POST","/api/samples",{patient_id:user.patientId,test_ids:cart.map(t=>t.id),collection_type:"Walk-in",priority:"Normal"});
+    if(data.sample){setSamples(prev=>[data.sample,...prev]);setCart([]);alert("✅ Tests booked! Sample: "+data.sample.sample_no);}
+    else{alert("Booked! (Demo mode)");setCart([]);}
+  }
+
+  async function payBill(billId) {
+    const data=await api("PATCH","/api/billing/"+billId+"/pay",{payment_mode:"UPI"});
+    if(data.invoice) setBills(prev=>prev.map(b=>b.id===billId?data.invoice:b));
+  }
+
+  function Dashboard() {
+    const ready=samples.filter(s=>s.status==="Reported"||s.status==="Dispatched").length;
+    const pending=bills.filter(b=>!b.paid).reduce((s,b)=>s+Number(b.total),0);
+    return h("div",{className:"fade-in"},
+      h("div",{style:{marginBottom:24}},
+        h("h2",{style:{color:"#fff",fontSize:22,fontWeight:700,marginBottom:4}},"Good morning, "+user.name.split(" ")[0]+" 👋"),
+        h("p",{style:{color:"rgba(255,255,255,0.4)",fontSize:13}},"Welcome to MedPath · Live System")
+      ),
+      h("div",{style:{display:"grid",gridTemplateColumns:"repeat(2,1fr)",gap:12,marginBottom:20}},
+        [{icon:"🧪",label:"Tests Booked",value:samples.length,gradient:"linear-gradient(135deg,#6366f1,#8b5cf6)"},
+         {icon:"📄",label:"Reports Ready",value:ready,gradient:"linear-gradient(135deg,#10b981,#059669)"},
+         {icon:"💳",label:"Pending (₹)",value:pending,gradient:"linear-gradient(135deg,#f59e0b,#ef4444)"},
+         {icon:"🛒",label:"In Cart",value:cart.length,gradient:"linear-gradient(135deg,#0ea5e9,#6366f1)"},
+        ].map(s=>h(StatCard,{key:s.label,...s}))
+      ),
+      h("div",{className:"glass",style:{padding:20}},
+        h("h3",{style:{color:"#fff",fontSize:15,fontWeight:600,marginBottom:14}},  "⚡ Quick Actions"),
+        nav.filter(n=>n.id!=="dashboard").map(n=>
+          h("button",{key:n.id,onClick:()=>setActive(n.id),style:{
+            width:"100%",display:"flex",alignItems:"center",gap:12,
+            padding:"13px 16px",borderRadius:12,border:"1px solid rgba(255,255,255,0.08)",
+            background:"rgba(255,255,255,0.04)",cursor:"pointer",marginBottom:8,
+            fontFamily:"inherit",fontWeight:500,fontSize:13,color:"rgba(255,255,255,0.8)",textAlign:"left",
+            transition:"all .15s"
+          }},
+            h("span",{style:{fontSize:20}},n.icon),n.label,
+            h("span",{style:{marginLeft:"auto",color:"rgba(99,102,241,0.8)",fontSize:18}},"›")
+          )
+        )
+      )
+    );
+  }
+
+  function Tests() {
+    const [search,setSearch]=useState("");
+    const inCart=id=>cart.find(c=>c.id===id);
+    const toggle=t=>setCart(prev=>inCart(t.id)?prev.filter(c=>c.id!==t.id):[...prev,t]);
+    const filtered=tests.filter(t=>t.name.toLowerCase().includes(search.toLowerCase())||t.category.toLowerCase().includes(search.toLowerCase()));
+    return h("div",{className:"fade-in"},
+      h("div",{style:{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16,flexWrap:"wrap",gap:10}},
+        h("h2",{style:{color:"#fff",fontSize:20,fontWeight:700}},"🧪 Book Tests"),
+        cart.length>0&&h("div",{className:"glass",style:{padding:"10px 16px",display:"flex",alignItems:"center",gap:14}},
+          h("div",null,
+            h("div",{style:{fontSize:11,color:"rgba(255,255,255,0.5)"}}),cart.length+" selected",
+            h("div",{style:{fontSize:18,fontWeight:800,background:"linear-gradient(135deg,#6366f1,#8b5cf6)",WebkitBackgroundClip:"text",WebkitTextFillColor:"transparent"}},"₹"+total)
+          ),
+          h("button",{onClick:bookTests,className:"btn-teal",style:{fontSize:12,padding:"8px 14px"}},"Book Now ✓")
+        )
+      ),
+      h("input",{className:"inp",value:search,onChange:e=>setSearch(e.target.value),placeholder:"🔍 Search tests...",style:{marginBottom:14}}),
+      tests.length===0&&h(Spinner),
+      h("div",{style:{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(160px,1fr))",gap:12}},
+        filtered.map(t=>{
+          const sel=inCart(t.id);
+          return h("div",{key:t.id,onClick:()=>toggle(t),style:{
+            background:sel?"rgba(99,102,241,0.2)":"rgba(255,255,255,0.05)",
+            border:"1px solid "+(sel?"rgba(99,102,241,0.5)":"rgba(255,255,255,0.1)"),
+            borderRadius:16,padding:16,cursor:"pointer",transition:"all .2s",
+            backdropFilter:"blur(12px)"
+          }},
+            h("div",{style:{fontSize:10,fontWeight:600,color:"rgba(99,102,241,0.8)",marginBottom:6,textTransform:"uppercase",letterSpacing:.5}},t.category),
+            h("div",{style:{fontWeight:600,fontSize:13,color:"#fff",marginBottom:4,lineHeight:1.3}},t.name),
+            t.fasting_required&&h("div",{style:{fontSize:10,color:"#fbbf24",marginBottom:6}},"⚠️ Fasting"),
+            h("div",{style:{display:"flex",justifyContent:"space-between",alignItems:"center",marginTop:8}},
+              h("div",{style:{fontSize:16,fontWeight:800,color:sel?"#a5b4fc":"#fff"}},"₹"+t.price),
+              h("div",{style:{
+                width:24,height:24,borderRadius:"50%",
+                background:sel?"linear-gradient(135deg,#6366f1,#8b5cf6)":"rgba(255,255,255,0.1)",
+                display:"flex",alignItems:"center",justifyContent:"center",
+                color:"#fff",fontSize:14,fontWeight:700
+              }},sel?"✓":"+")
+            )
+          );
+        })
+      )
+    );
+  }
+
+  function Reports() {
+    const statusColor={Pending:"#f59e0b",Collected:"#0ea5e9",Processing:"#6366f1",Reported:"#a855f7",Dispatched:"#10b981"};
+    const statusPct={Pending:"10%",Collected:"30%",Processing:"55%",Reported:"80%",Dispatched:"100%"};
+    return h("div",{className:"fade-in"},
+      h("h2",{style:{color:"#fff",fontSize:20,fontWeight:700,marginBottom:16}},"📄 My Reports"),
+      samples.length===0&&h("div",{className:"glass",style:{padding:40,textAlign:"center"}},
+        h("div",{style:{fontSize:48,marginBottom:12}},"📋"),
+        h("p",{style:{color:"rgba(255,255,255,0.4)",fontSize:14}},"No samples yet. Book a test!"),
+        h("button",{onClick:()=>setActive("tests"),className:"btn-teal",style:{marginTop:16,padding:"10px 20px",fontSize:13}},"Book Tests →")
+      ),
+      h("div",{style:{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(200px,1fr))",gap:14}},
+        samples.map(s=>h("div",{key:s.id,className:"glass",style:{padding:18}},
+          h("div",{style:{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:10}},
+            h("div",{style:{fontWeight:700,fontSize:13,color:"#fff"}},s.sample_no),
+            h(Badge,{label:s.status,color:statusColor[s.status]||"#8A9BB0"})
+          ),
+          h("div",{style:{fontSize:12,color:"rgba(255,255,255,0.5)",marginBottom:10}},(s.test_names||[]).join(", ")||"Tests"),
+          h("div",{style:{height:4,background:"rgba(255,255,255,0.1)",borderRadius:2,overflow:"hidden"}},
+            h("div",{style:{height:"100%",background:"linear-gradient(90deg,#6366f1,#8b5cf6)",borderRadius:2,width:statusPct[s.status]||"10%",transition:"width .5s"}})
+          )
+        ))
+      )
+    );
+  }
+
+  function Billing() {
+    return h("div",{className:"fade-in"},
+      h("h2",{style:{color:"#fff",fontSize:20,fontWeight:700,marginBottom:16}},"💳 Billing"),
+      h("div",{style:{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:12,marginBottom:16}},
+        [{icon:"✅",label:"Paid",value:"₹"+bills.filter(b=>b.paid).reduce((s,b)=>s+Number(b.total),0),gradient:"linear-gradient(135deg,#10b981,#059669)"},
+         {icon:"⏳",label:"Pending",value:"₹"+bills.filter(b=>!b.paid).reduce((s,b)=>s+Number(b.total),0),gradient:"linear-gradient(135deg,#ef4444,#dc2626)"},
+         {icon:"🧾",label:"Invoices",value:bills.length,gradient:"linear-gradient(135deg,#6366f1,#8b5cf6)"},
+        ].map(s=>h(StatCard,{key:s.label,...s}))
+      ),
+      bills.length===0&&h("div",{className:"glass",style:{padding:30,textAlign:"center"}},h("p",{style:{color:"rgba(255,255,255,0.4)"}},"No invoices yet.")),
+      h("div",{className:"glass",style:{overflow:"hidden"}},
+        bills.map((b,i)=>h("div",{key:b.id,style:{
+          display:"flex",justifyContent:"space-between",alignItems:"center",
+          padding:"14px 18px",borderBottom:i<bills.length-1?"1px solid rgba(255,255,255,0.05)":"none",
+          flexWrap:"wrap",gap:8
+        }},
+          h("div",null,
+            h("div",{style:{fontWeight:600,color:"#fff",fontSize:14}},b.invoice_no),
+            h("div",{style:{fontSize:11,color:"rgba(255,255,255,0.4)",marginTop:2}},(b.test_names||[]).join(", ")),
+            h("div",{style:{fontSize:10,color:"rgba(255,255,255,0.3)"}},new Date(b.created_at).toLocaleDateString())
+          ),
+          h("div",{style:{display:"flex",gap:10,alignItems:"center"}},
+            h("div",{style:{fontWeight:800,color:"#fff"}},"₹"+b.total),
+            h(Badge,{label:b.paid?"Paid":"Due",color:b.paid?"#10b981":"#ef4444"}),
+            !b.paid&&h("button",{onClick:()=>payBill(b.id),className:"btn-sm",style:{background:"linear-gradient(135deg,#ef4444,#dc2626)",color:"#fff"}},"Pay Now")
+          )
+        ))
+      )
+    );
+  }
+
+  function Family() {
+    const [members,setMembers]=useState([]);
+    const [loading,setLoading]=useState(true);
+    useEffect(()=>{
+      if(user.patientId) {
+        api("GET","/api/family/patient/"+user.patientId).then(d=>{if(d.members)setMembers(d.members);setLoading(false);});
+      } else setLoading(false);
+    },[]);
+    return h("div",{className:"fade-in"},
+      h("h2",{style:{color:"#fff",fontSize:20,fontWeight:700,marginBottom:16}},"👨‍👩‍👧 Family Members"),
+      loading&&h(Spinner),
+      !loading&&members.length===0&&h("div",{className:"glass",style:{padding:40,textAlign:"center"}},
+        h("div",{style:{fontSize:48,marginBottom:10}},"👨‍👩‍👧"),
+        h("p",{style:{color:"rgba(255,255,255,0.4)"}}, "No family members added yet.")
+      ),
+      h("div",{style:{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(180px,1fr))",gap:14}},
+        members.map(m=>h("div",{key:m.id,className:"glass",style:{padding:20}},
+          h("div",{style:{width:48,height:48,borderRadius:"50%",background:"linear-gradient(135deg,#6366f1,#8b5cf6)",display:"flex",alignItems:"center",justifyContent:"center",color:"#fff",fontSize:20,fontWeight:700,marginBottom:12}},m.name[0]),
+          h("div",{style:{fontWeight:600,color:"#fff",fontSize:14}},m.name),
+          h("div",{style:{fontSize:12,color:"rgba(255,255,255,0.4)",marginBottom:8}},m.relation),
+          m.blood_group&&h(Badge,{label:"Blood: "+m.blood_group,color:"#ef4444"})
+        ))
+      )
+    );
+  }
+
+  function Profile() {
+    return h("div",{className:"fade-in"},
+      h("h2",{style:{color:"#fff",fontSize:20,fontWeight:700,marginBottom:16}},"👤 My Profile"),
+      h("div",{className:"glass",style:{padding:24,maxWidth:400}},
+        h("div",{style:{display:"flex",gap:16,alignItems:"center",marginBottom:24}},
+          h("div",{style:{width:64,height:64,borderRadius:"50%",background:"linear-gradient(135deg,#6366f1,#8b5cf6)",display:"flex",alignItems:"center",justifyContent:"center",color:"#fff",fontSize:26,fontWeight:700,boxShadow:"0 4px 20px rgba(99,102,241,0.4)"}},user.name?user.name[0]:"P"),
+          h("div",null,
+            h("div",{style:{fontSize:18,fontWeight:700,color:"#fff"}},user.name),
+            h("div",{style:{fontSize:12,color:"rgba(255,255,255,0.4)"}},user.patientNo||user.id),
+            h("div",{style:{fontSize:12,color:"rgba(255,255,255,0.4)"}},user.phone||"")
+          )
+        ),
+        [["Role",user.role||"Patient"],["Patient No",user.patientNo||"—"],["Phone",user.phone||"—"],["Email",user.email||"—"]].map(([k,v])=>
+          h("div",{key:k,style:{padding:"12px 0",borderBottom:"1px solid rgba(255,255,255,0.06)"}},
+            h("div",{style:{fontSize:10,color:"rgba(255,255,255,0.3)",textTransform:"uppercase",letterSpacing:.8,marginBottom:4}},k),
+            h("div",{style:{fontSize:14,fontWeight:500,color:"#fff"}},v)
+          )
+        )
+      )
+    );
+  }
+
+  const pages={dashboard:h(Dashboard),tests:h(Tests),reports:h(Reports),billing:h(Billing),family:h(Family),profile:h(Profile)};
+  return h("div",{style:{display:"flex",minHeight:"100vh"}},
+    h(Sidebar,{nav,active,setActive,user,onLogout,gradient:"linear-gradient(135deg,#6366f1,#8b5cf6)"}),
+    h("div",{className:"main-content"},pages[active]||pages.dashboard)
+  );
+}
+function AdminApp({user,onLogout}) {
+  const [active,setActive]=useState("dashboard");
+  const [samples,setSamples]=useState([]);
+  const [bills,setBills]=useState([]);
+  const [stats,setStats]=useState({});
+  const nav=[
+    {id:"dashboard",icon:"🏠",label:"Dashboard"},
+    {id:"samples",icon:"🔬",label:"Samples"},
+    {id:"patients",icon:"👥",label:"Patients"},
+    {id:"billing",icon:"💰",label:"Billing"},
+    {id:"tests",icon:"🧪",label:"Manage Tests"},
+  ];
+  const statusColor={Pending:"#f59e0b",Collected:"#0ea5e9",Processing:"#6366f1",Reported:"#a855f7",Dispatched:"#10b981",Cancelled:"#ef4444"};
+  const statusOrder=["Pending","Collected","Processing","Reported","Dispatched"];
+
+  useEffect(()=>{
+    api("GET","/api/dashboard").then(d=>{ if(d.stats) setStats(d.stats); });
+    api("GET","/api/samples?limit=20").then(d=>{ if(d.samples) setSamples(d.samples); });
+    api("GET","/api/billing?limit=20").then(d=>{ if(d.invoices) setBills(d.invoices); });
+  },[]);
+
+  async function advanceSample(id,currentStatus) {
+    const next=statusOrder[statusOrder.indexOf(currentStatus)+1];
+    if(!next) return;
+    const data=await api("PATCH","/api/samples/"+id+"/status",{status:next});
+    if(data.sample) setSamples(prev=>prev.map(s=>s.id===id?{...s,status:next}:s));
+  }
+
+  async function markPaid(id) {
+    const data=await api("PATCH","/api/billing/"+id+"/pay",{payment_mode:"Manual"});
+    if(data.invoice) setBills(prev=>prev.map(b=>b.id===id?data.invoice:b));
+  }
+
+  function Dashboard() {
+    return h("div",{className:"fade-in"},
+      h("div",{style:{marginBottom:24}},
+        h("h2",{style:{color:"#fff",fontSize:22,fontWeight:700,marginBottom:4}},"Admin Dashboard 🏥"),
+        h("p",{style:{color:"rgba(255,255,255,0.4)",fontSize:13}},"Live · "+new Date().toDateString())
+      ),
+      h("div",{style:{display:"grid",gridTemplateColumns:"repeat(2,1fr)",gap:12,marginBottom:20}},
+        [{icon:"🧪",label:"Today Samples",value:stats.today_samples||0,gradient:"linear-gradient(135deg,#6366f1,#8b5cf6)"},
+         {icon:"👥",label:"Total Patients",value:stats.total_patients||0,gradient:"linear-gradient(135deg,#0ea5e9,#6366f1)"},
+         {icon:"⏳",label:"Pending",value:stats.pending_samples||0,gradient:"linear-gradient(135deg,#f59e0b,#ef4444)"},
+         {icon:"🚗",label:"Home Today",value:stats.home_today||0,gradient:"linear-gradient(135deg,#a855f7,#6366f1)"},
+        ].map(s=>h(StatCard,{key:s.label,...s}))
+      ),
+      h("div",{className:"glass",style:{padding:20}},
+        h("h3",{style:{color:"#fff",fontSize:15,fontWeight:600,marginBottom:14}},"Recent Samples"),
+        samples.length===0&&h(Spinner),
+        samples.slice(0,5).map(s=>h("div",{key:s.id,style:{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"11px 0",borderBottom:"1px solid rgba(255,255,255,0.05)"}},
+          h("div",null,
+            h("div",{style:{fontWeight:600,fontSize:13,color:"#fff"}},s.patient_name||"Patient"),
+            h("div",{style:{fontSize:11,color:"rgba(255,255,255,0.4)"}},s.sample_no+" · "+(s.test_codes||[]).join(", "))
+          ),
+          h(Badge,{label:s.status,color:statusColor[s.status]||"#8A9BB0"})
+        ))
+      )
+    );
+  }
+
+  function Samples() {
+    return h("div",{className:"fade-in"},
+      h("h2",{style:{color:"#fff",fontSize:20,fontWeight:700,marginBottom:16}},"🔬 Sample Tracking"),
+      samples.length===0&&h(Spinner),
+      h("div",{style:{overflowX:"auto"}},
+        h("table",{className:"glass-table",style:{borderRadius:16,overflow:"hidden",backdropFilter:"blur(12px)"}},
+          h("thead",null,
+            h("tr",null,
+              ["Sample","Patient","Tests","Status","Priority","Action"].map(col=>
+                h("th",{key:col},col)
+              )
+            )
+          ),
+          h("tbody",null,
+            samples.map(s=>h("tr",{key:s.id},
+              h("td",{style:{fontWeight:700,color:"#a5b4fc",fontSize:12}},s.sample_no),
+              h("td",{style:{color:"#fff"}},s.patient_name||"—"),
+              h("td",{style:{color:"rgba(255,255,255,0.6)",fontSize:12}},(s.test_codes||[]).join(", ")),
+              h("td",null,h(Badge,{label:s.status,color:statusColor[s.status]||"#8A9BB0"})),
+              h("td",null,h(Badge,{label:s.priority||"Normal",color:s.priority==="Urgent"?"#ef4444":"#6b7280"})),
+              h("td",null,
+                s.status!=="Dispatched"&&s.status!=="Cancelled"&&
+                h("button",{onClick:()=>advanceSample(s.id,s.status),className:"btn-sm",style:{background:"rgba(99,102,241,0.2)",color:"#a5b4fc",border:"1px solid rgba(99,102,241,0.3)"}},"Advance →")
+              )
+            ))
+          )
+        )
+      )
+    );
+  }
+
+  function Patients() {
+    const [patients,setPatients]=useState([]);
+    const [loading,setLoading]=useState(true);
+    useEffect(()=>{
+      api("GET","/api/patients?limit=20").then(d=>{if(d.patients)setPatients(d.patients);setLoading(false);});
+    },[]);
+    return h("div",{className:"fade-in"},
+      h("h2",{style:{color:"#fff",fontSize:20,fontWeight:700,marginBottom:16}},"👥 Patients"),
+      loading&&h(Spinner),
+      h("div",{style:{overflowX:"auto"}},
+        h("table",{className:"glass-table",style:{borderRadius:16,overflow:"hidden",backdropFilter:"blur(12px)"}},
+          h("thead",null,
+            h("tr",null,
+              ["No","Name","Age","Blood","Phone","Joined"].map(col=>h("th",{key:col},col))
+            )
+          ),
+          h("tbody",null,
+            patients.map(p=>h("tr",{key:p.id},
+              h("td",{style:{color:"#a5b4fc",fontWeight:700,fontSize:12}},p.patient_no),
+              h("td",{style:{color:"#fff",fontWeight:600}},p.name),
+              h("td",{style:{color:"rgba(255,255,255,0.6)",fontSize:12}},(p.date_of_birth?new Date().getFullYear()-new Date(p.date_of_birth).getFullYear()+"yr":"—")),
+              h("td",null,p.blood_group&&h(Badge,{label:p.blood_group,color:"#ef4444"})),
+              h("td",{style:{color:"rgba(255,255,255,0.6)",fontSize:12}},p.phone||"—"),
+              h("td",{style:{color:"rgba(255,255,255,0.4)",fontSize:11}},new Date(p.created_at).toLocaleDateString())
+            ))
+          )
+        )
+      )
+    );
+  }
+
+  function Billing() {
+    const total=bills.reduce((s,b)=>s+Number(b.total),0);
+    const collected=bills.filter(b=>b.paid).reduce((s,b)=>s+Number(b.total),0);
+    return h("div",{className:"fade-in"},
+      h("h2",{style:{color:"#fff",fontSize:20,fontWeight:700,marginBottom:16}},"💰 Billing"),
+      h("div",{style:{display:"grid",gridTemplateColumns:"repeat(2,1fr)",gap:12,marginBottom:16}},
+        [{icon:"💰",label:"Total Revenue",value:"₹"+total,gradient:"linear-gradient(135deg,#6366f1,#8b5cf6)"},
+         {icon:"✅",label:"Collected",value:"₹"+collected,gradient:"linear-gradient(135deg,#10b981,#059669)"},
+         {icon:"⏳",label:"Outstanding",value:"₹"+(total-collected),gradient:"linear-gradient(135deg,#ef4444,#dc2626)"},
+         {icon:"🧾",label:"Invoices",value:bills.length,gradient:"linear-gradient(135deg,#0ea5e9,#6366f1)"},
+        ].map(s=>h(StatCard,{key:s.label,...s}))
+      ),
+      h("div",{style:{overflowX:"auto"}},
+        h("table",{className:"glass-table",style:{borderRadius:16,overflow:"hidden",backdropFilter:"blur(12px)"}},
+          h("thead",null,
+            h("tr",null,["Invoice","Patient","Amount","Status","Action"].map(col=>h("th",{key:col},col)))
+          ),
+          h("tbody",null,
+            bills.map(b=>h("tr",{key:b.id},
+              h("td",{style:{color:"#a5b4fc",fontWeight:700,fontSize:12}},b.invoice_no),
+              h("td",{style:{color:"#fff"}},b.patient_name||"—"),
+              h("td",{style:{fontWeight:700,color:"#fff"}},"₹"+b.total),
+              h("td",null,h(Badge,{label:b.paid?"Paid":"Due",color:b.paid?"#10b981":"#ef4444"})),
+              h("td",null,!b.paid&&h("button",{onClick:()=>markPaid(b.id),className:"btn-sm",style:{background:"rgba(239,68,68,0.2)",color:"#fca5a5",border:"1px solid rgba(239,68,68,0.3)"}},"Mark Paid"))
+            ))
+          )
+        )
+      )
+    );
+  }
+
+  function ManageTests() {
+    const [tests,setTests]=useState([]);
+    const [loading,setLoading]=useState(true);
+    const [editing,setEditing]=useState(null);
+    const [form,setForm]=useState({name:"",category:"",price:"",turnaround_hrs:"6",fasting_required:false});
+    const [adding,setAdding]=useState(false);
+    useEffect(()=>{ api("GET","/api/tests").then(d=>{if(d.tests)setTests(d.tests);setLoading(false);}); },[]);
+    async function saveEdit(id) {
+      const data=await api("PUT","/api/tests/"+id,{name:form.name,category:form.category,price:Number(form.price),turnaround_hrs:Number(form.turnaround_hrs),fasting_required:form.fasting_required,is_active:true});
+      if(data.test){setTests(prev=>prev.map(t=>t.id===id?data.test:t));setEditing(null);}
+    }
+    async function addTest() {
+      const data=await api("POST","/api/tests",{code:form.name.substring(0,6).toUpperCase().replace(/\s/g,""),name:form.name,category:form.category,price:Number(form.price),turnaround_hrs:Number(form.turnaround_hrs)||6,fasting_required:form.fasting_required});
+      if(data.test){setTests(prev=>[...prev,data.test]);setAdding(false);setForm({name:"",category:"",price:"",turnaround_hrs:"6",fasting_required:false});}
+    }
+    async function toggleActive(test) {
+      const data=await api("PUT","/api/tests/"+test.id,{name:test.name,category:test.category,price:Number(test.price),turnaround_hrs:Number(test.turnaround_hrs),fasting_required:test.fasting_required,is_active:!test.is_active});
+      if(data.test) setTests(prev=>prev.map(t=>t.id===test.id?data.test:t));
+    }
+    const inp2={width:"100%",padding:"9px 12px",background:"rgba(255,255,255,0.08)",border:"1px solid rgba(255,255,255,0.15)",borderRadius:10,color:"#fff",fontSize:13,outline:"none",fontFamily:"inherit",boxSizing:"border-box",marginBottom:8};
+    return h("div",{className:"fade-in"},
+      h("div",{style:{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16}},
+        h("h2",{style:{color:"#fff",fontSize:20,fontWeight:700}},"🧪 Manage Tests"),
+        h("button",{onClick:()=>{setAdding(!adding);},className:"btn-teal",style:{fontSize:13,padding:"9px 18px"}},adding?"Cancel":"+ Add Test")
+      ),
+      adding&&h("div",{className:"glass",style:{padding:20,marginBottom:16}},
+        h("h3",{style:{color:"#a5b4fc",marginBottom:14,fontSize:14}},"Add New Test"),
+        h("input",{style:inp2,value:form.name,onChange:e=>setForm({...form,name:e.target.value}),placeholder:"Test Name *"}),
+        h("input",{style:inp2,value:form.category,onChange:e=>setForm({...form,category:e.target.value}),placeholder:"Category *"}),
+        h("input",{type:"number",style:inp2,value:form.price,onChange:e=>setForm({...form,price:e.target.value}),placeholder:"Price (₹) *"}),
+        h("input",{type:"number",style:inp2,value:form.turnaround_hrs,onChange:e=>setForm({...form,turnaround_hrs:e.target.value}),placeholder:"Turnaround Hours"}),
+        h("label",{style:{display:"flex",alignItems:"center",gap:8,color:"rgba(255,255,255,0.6)",fontSize:13,marginBottom:12,cursor:"pointer"}},
+          h("input",{type:"checkbox",checked:form.fasting_required,onChange:e=>setForm({...form,fasting_required:e.target.checked})}),"Fasting Required"
+        ),
+        h("button",{onClick:addTest,className:"btn-teal"},"Save Test ✓")
+      ),
+      loading&&h(Spinner),
+      h("div",{style:{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(180px,1fr))",gap:12}},
+        tests.map(t=>
+          editing===t.id
+          ?h("div",{key:t.id,className:"glass",style:{padding:16,border:"1px solid rgba(99,102,241,0.4)"}},
+            h("input",{style:inp2,value:form.name,onChange:e=>setForm({...form,name:e.target.value}),placeholder:"Name"}),
+            h("input",{style:inp2,value:form.category,onChange:e=>setForm({...form,category:e.target.value}),placeholder:"Category"}),
+            h("input",{type:"number",style:inp2,value:form.price,onChange:e=>setForm({...form,price:e.target.value}),placeholder:"Price"}),
+            h("input",{type:"number",style:inp2,value:form.turnaround_hrs,onChange:e=>setForm({...form,turnaround_hrs:e.target.value}),placeholder:"Hours"}),
+            h("div",{style:{display:"flex",gap:8,marginTop:4}},
+              h("button",{onClick:()=>saveEdit(t.id),className:"btn-sm",style:{background:"rgba(16,185,129,0.2)",color:"#6ee7b7",border:"1px solid rgba(16,185,129,0.3)",flex:1}},"Save ✓"),
+              h("button",{onClick:()=>setEditing(null),className:"btn-sm",style:{background:"rgba(255,255,255,0.06)",color:"rgba(255,255,255,0.5)",border:"1px solid rgba(255,255,255,0.1)",flex:1}},"Cancel")
+            )
+          )
+          :h("div",{key:t.id,className:"glass",style:{padding:16,opacity:t.is_active?1:0.5}},
+            h("div",{style:{fontSize:10,color:"rgba(99,102,241,0.8)",fontWeight:600,textTransform:"uppercase",letterSpacing:.5,marginBottom:6}},t.category),
+            h("div",{style:{fontWeight:600,color:"#fff",fontSize:13,marginBottom:4,lineHeight:1.3}},t.name),
+            h("div",{style:{fontSize:18,fontWeight:800,background:"linear-gradient(135deg,#6366f1,#8b5cf6)",WebkitBackgroundClip:"text",WebkitTextFillColor:"transparent",marginBottom:8}},"₹"+t.price),
+            h("div",{style:{display:"flex",gap:6}},
+              h("button",{onClick:()=>{setEditing(t.id);setForm({name:t.name,category:t.category,price:t.price,turnaround_hrs:t.turnaround_hrs,fasting_required:t.fasting_required});},className:"btn-sm",style:{background:"rgba(99,102,241,0.2)",color:"#a5b4fc",border:"1px solid rgba(99,102,241,0.3)",flex:1}},"Edit"),
+              h("button",{onClick:()=>toggleActive(t),className:"btn-sm",style:{background:t.is_active?"rgba(239,68,68,0.15)":"rgba(16,185,129,0.15)",color:t.is_active?"#fca5a5":"#6ee7b7",border:"1px solid "+(t.is_active?"rgba(239,68,68,0.3)":"rgba(16,185,129,0.3)"),flex:1}},t.is_active?"Off":"On")
+            )
+          )
+        )
+      )
+    );
+  }
+
+  const pages={dashboard:h(Dashboard),samples:h(Samples),patients:h(Patients),billing:h(Billing),tests:h(ManageTests)};
+  return h("div",{style:{display:"flex",minHeight:"100vh"}},
+    h(Sidebar,{nav,active,setActive,user,onLogout,gradient:"linear-gradient(135deg,#0ea5e9,#6366f1)"}),
+    h("div",{className:"main-content"},pages[active]||pages.dashboard)
+  );
+}
+
+function TechApp({user,onLogout}) {
+  const [active,setActive]=useState("dashboard");
+  const [samples,setSamples]=useState([]);
+  const nav=[{id:"dashboard",icon:"🏠",label:"Dashboard"},{id:"results",icon:"📝",label:"Results"}];
+  const statusColor={Pending:"#f59e0b",Collected:"#0ea5e9",Processing:"#6366f1",Reported:"#a855f7",Dispatched:"#10b981"};
+  useEffect(()=>{ api("GET","/api/samples?status=Processing&limit=20").then(d=>{if(d.samples)setSamples(d.samples);}); },[]);
+  async function markReported(id) {
+    const data=await api("PATCH","/api/samples/"+id+"/status",{status:"Reported"});
+    if(data.sample) setSamples(prev=>prev.map(s=>s.id===id?{...s,status:"Reported"}:s));
+  }
+  function Dashboard() {
+    return h("div",{className:"fade-in"},
+      h("h2",{style:{color:"#fff",fontSize:20,fontWeight:700,marginBottom:20}},"Good morning, "+user.name.split(" ")[0]+" 👋"),
+      h("div",{style:{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:12,marginBottom:20}},
+        [{icon:"🧪",label:"Processing",value:samples.filter(s=>s.status==="Processing").length,gradient:"linear-gradient(135deg,#6366f1,#8b5cf6)"},
+         {icon:"⚡",label:"Urgent",value:samples.filter(s=>s.priority==="Urgent").length,gradient:"linear-gradient(135deg,#ef4444,#dc2626)"},
+         {icon:"✅",label:"Reported",value:samples.filter(s=>s.status==="Reported").length,gradient:"linear-gradient(135deg,#10b981,#059669)"},
+        ].map(s=>h(StatCard,{key:s.label,...s}))
+      ),
+      h("div",{className:"glass",style:{padding:20}},
+        h("h3",{style:{color:"#fff",fontSize:15,fontWeight:600,marginBottom:14}},"My Queue"),
+        samples.length===0&&h("p",{style:{color:"rgba(255,255,255,0.4)",fontSize:13,textAlign:"center",padding:20}},"✅ No samples pending!"),
+        samples.map(s=>h("div",{key:s.id,style:{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"12px 0",borderBottom:"1px solid rgba(255,255,255,0.05)",flexWrap:"wrap",gap:8}},
+          h("div",null,
+            h("div",{style:{fontWeight:600,fontSize:13,color:"#fff"}},s.sample_no+" · "+(s.patient_name||"Patient")),
+            h("div",{style:{fontSize:11,color:"rgba(255,255,255,0.4)"}},(s.test_codes||[]).join(", "))
+          ),
+          h("div",{style:{display:"flex",gap:8,alignItems:"center"}},
+            s.priority==="Urgent"&&h(Badge,{label:"URGENT",color:"#ef4444"}),
+            h(Badge,{label:s.status,color:statusColor[s.status]||"#8A9BB0"}),
+            s.status==="Processing"&&h("button",{onClick:()=>markReported(s.id),className:"btn-sm",style:{background:"rgba(16,185,129,0.2)",color:"#6ee7b7",border:"1px solid rgba(16,185,129,0.3)"}},"Mark Reported ✓")
+          )
+        ))
+      )
+    );
+  }
+  const pages={dashboard:h(Dashboard),results:h(Dashboard)};
+  return h("div",{style:{display:"flex",minHeight:"100vh"}},
+    h(Sidebar,{nav,active,setActive,user,onLogout,gradient:"linear-gradient(135deg,#14b8a6,#0ea5e9)"}),
+    h("div",{className:"main-content"},pages[active]||pages.dashboard)
+  );
+}
+
+function DoctorApp({user,onLogout}) {
+  const [active,setActive]=useState("dashboard");
+  const [samples,setSamples]=useState([]);
+  const nav=[{id:"dashboard",icon:"🏠",label:"Dashboard"},{id:"patients",icon:"👥",label:"Patients"}];
+  useEffect(()=>{ api("GET","/api/samples?status=Reported&limit=20").then(d=>{if(d.samples)setSamples(d.samples);}); },[]);
+  async function signReport(id) {
+    const data=await api("PATCH","/api/samples/"+id+"/status",{status:"Dispatched",notes:"Approved by "+user.name});
+    if(data.sample) setSamples(prev=>prev.map(s=>s.id===id?{...s,status:"Dispatched"}:s));
+  }
+  function Dashboard() {
+    return h("div",{className:"fade-in"},
+      h("h2",{style:{color:"#fff",fontSize:20,fontWeight:700,marginBottom:20}},"Doctor Dashboard 👨‍⚕️"),
+      h("div",{style:{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:12,marginBottom:20}},
+        [{icon:"📄",label:"To Review",value:samples.length,gradient:"linear-gradient(135deg,#f59e0b,#ef4444)"},
+         {icon:"✅",label:"Signed",value:0,gradient:"linear-gradient(135deg,#10b981,#059669)"},
+         {icon:"⚠️",label:"Critical",value:0,gradient:"linear-gradient(135deg,#ef4444,#dc2626)"},
+        ].map(s=>h(StatCard,{key:s.label,...s}))
+      ),
+      h("div",{className:"glass",style:{padding:20}},
+        h("h3",{style:{color:"#fff",fontSize:15,fontWeight:600,marginBottom:14}},"Pending Sign-off"),
+        samples.length===0&&h("p",{style:{color:"rgba(255,255,255,0.4)",fontSize:13,textAlign:"center",padding:20}},"✅ No reports pending!"),
+        samples.map(s=>h("div",{key:s.id,style:{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"12px 0",borderBottom:"1px solid rgba(255,255,255,0.05)",flexWrap:"wrap",gap:8}},
+          h("div",null,
+            h("div",{style:{fontWeight:600,fontSize:13,color:"#fff"}},s.patient_name||"Patient"),
+            h("div",{style:{fontSize:11,color:"rgba(255,255,255,0.4)"}},s.sample_no+" · "+(s.test_codes||[]).join(", "))
+          ),
+          h("button",{onClick:()=>signReport(s.id),className:"btn-sm",style:{background:"rgba(16,185,129,0.2)",color:"#6ee7b7",border:"1px solid rgba(16,185,129,0.3)"}},"Sign & Dispatch ✓")
+        ))
+      )
+    );
+  }
+  const pages={dashboard:h(Dashboard),patients:h(Dashboard)};
+  return h("div",{style:{display:"flex",minHeight:"100vh"}},
+    h(Sidebar,{nav,active,setActive,user,onLogout,gradient:"linear-gradient(135deg,#f59e0b,#ef4444)"}),
+    h("div",{className:"main-content"},pages[active]||pages.dashboard)
+  );
+}
+
+function App() {
+  const [role,setRole]=useState(null);
+  const [user,setUser]=useState(null);
+  function handleLogin(u,back){if(back){setRole(null);setUser(null);TOKEN=null;}else setUser(u);}
+  function handleLogout(){setUser(null);setRole(null);TOKEN=null;}
+  if(!role) return h(RoleSelect,{onSelect:setRole});
+  if(!user) return h(Login,{role,onLogin:handleLogin});
+  if(role==="Patient") return h(PatientApp,{user,onLogout:handleLogout});
+  if(role==="Admin") return h(AdminApp,{user,onLogout:handleLogout});
+  if(role==="Technician") return h(TechApp,{user,onLogout:handleLogout});
+  if(role==="Doctor") return h(DoctorApp,{user,onLogout:handleLogout});
+}
+
+const root=ReactDOM.createRoot(document.getElementById("root"));
+root.render(h(App,null));
+</script>
+</body>
+</html>
+

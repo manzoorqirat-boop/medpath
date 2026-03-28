@@ -1260,7 +1260,7 @@ function TechApp({user,onLogout}) {
   const [allSamples,setAllSamples]=useState([]);
 
   useEffect(()=>{
-    api("GET","/api/samples?limit=30").then(d=>{
+    api("GET","/api/samples?limit=50").then(d=>{
       if(d.samples){setAllSamples(d.samples);setSamples(d.samples.filter(s=>s.status==="Collected"||s.status==="Processing"));}
     });
   },[]);
@@ -1359,9 +1359,19 @@ function TechApp({user,onLogout}) {
         h("div",{className:"page-title"},"Results Entry"),
         h("div",{className:"page-sub"},"select sample to enter test values")
       ),
+      h("div",{style:{display:"flex",justifyContent:"flex-end",marginBottom:10}},
+        h("button",{onClick:async()=>{
+          const d=await api("GET","/api/samples?limit=50");
+          if(d.samples){setAllSamples(d.samples);setSamples(d.samples.filter(s=>s.status==="Collected"||s.status==="Processing"));}
+        },className:"btn sm"},"🔄 Refresh Queue")
+      ),
       queue.length===0&&h("div",{className:"card",style:{textAlign:"center",padding:40}},
         h("div",{style:{fontSize:44,marginBottom:8}},"✅"),
-        h("p",{style:{color:"var(--t2)"}},"No pending samples in queue")
+        h("p",{style:{color:"var(--t2)",marginBottom:14}},"No pending samples. Tap Refresh if Admin just collected a sample."),
+        h("button",{onClick:async()=>{
+          const d=await api("GET","/api/samples?limit=50");
+          if(d.samples){setAllSamples(d.samples);setSamples(d.samples.filter(s=>s.status==="Collected"||s.status==="Processing"));}
+        },className:"btn primary",style:{width:"auto",padding:"9px 22px"}},"🔄 Refresh Queue")
       ),
       queue.map(s=>h("div",{key:s.id,className:"card"},
         h("div",{style:{display:"flex",justifyContent:"space-between",alignItems:"center",flexWrap:"wrap",gap:10}},

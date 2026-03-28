@@ -162,7 +162,7 @@ label{font-size:11px;color:var(--t2);font-weight:500;letter-spacing:.03em;displa
 
 /* MODAL */
 .modal-bg{position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:200;display:flex;align-items:flex-start;justify-content:center;padding:16px;overflow-y:auto;-webkit-overflow-scrolling:touch;}
-.modal{background:var(--surface);border-radius:var(--r-xl);padding:28px;width:100%;max-width:560px;box-shadow:var(--sh-lg);position:relative;margin:auto;}
+.modal{background:var(--surface);border-radius:var(--r-xl);padding:28px;width:100%;max-width:560px;box-shadow:var(--sh-lg);position:relative;margin:auto;};margin:auto;}
 .modal-title{font-family:var(--serif);font-size:22px;color:var(--t1);margin-bottom:20px;}
 .modal-close{position:absolute;top:16px;right:16px;background:transparent;border:none;font-size:22px;cursor:pointer;color:var(--t3);line-height:1;padding:4px;}
 
@@ -396,14 +396,17 @@ function Sidebar({nav,active,setActive,user,onLogout}) {
     )
   );
 }
-function MobTopbar({user,active,nav}) {
+function MobTopbar({user,active,nav,onLogout}) {
   const curr=nav.find(n=>n.id===active);
   return h("div",{className:"mob-topbar"},
     h("div",{style:{display:"flex",alignItems:"center",gap:9}},
       h("div",{style:{width:30,height:30,background:"linear-gradient(135deg,var(--p),var(--p-mid))",borderRadius:8,display:"flex",alignItems:"center",justifyContent:"center",fontSize:15}},"🔬"),
       h("div",{style:{fontFamily:"var(--serif)",fontSize:17,color:"var(--t1)"}},"MedPath")
     ),
-    curr&&h("div",{style:{fontSize:12,color:"var(--t2)",fontFamily:"var(--mono)"}},(curr.icon+" "+curr.label).toLowerCase())
+    h("div",{style:{display:"flex",alignItems:"center",gap:10}},
+      curr&&h("div",{style:{fontSize:12,color:"var(--t2)",fontFamily:"var(--mono)"}},(curr.icon+" "+curr.label).toLowerCase()),
+      h("button",{onClick:onLogout,style:{background:"transparent",border:"1px solid var(--b1)",borderRadius:6,padding:"5px 10px",fontSize:11,cursor:"pointer",color:"var(--t2)",fontFamily:"var(--sans)"}},"Sign Out")
+    )
   );
 }
 function BottomNav({nav,active,setActive}) {
@@ -417,7 +420,7 @@ function BottomNav({nav,active,setActive}) {
 }
 function AppShell({nav,active,setActive,user,onLogout,children}) {
   return h("div",{className:"main-wrap"},
-    h(MobTopbar,{user,active,nav}),
+    h(MobTopbar,{user,active,nav,onLogout}),
     h(Sidebar,{nav,active,setActive,user,onLogout}),
     h("div",{className:"main-content"},children),
     h(BottomNav,{nav,active,setActive})

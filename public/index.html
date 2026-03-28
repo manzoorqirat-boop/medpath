@@ -505,7 +505,7 @@ function PatientApp({user,onLogout}) {
       ),
       h("div",{className:"card",style:{padding:0,overflowX:"auto"}},
         h("table",{className:"glass-table",style:{minWidth:580}},
-          h("thead",null,h("tr",null,["Sample No","Patient","Tests","Status","Priority","Action"].map(c=>h("th",{key:c},c)))),
+          h("thead",null,h("tr",null,["Patient No","Name","Age","Blood","Phone","Registered"].map(c=>h("th",{key:c},c)))),
           h("tbody",null,
             samples.map(s=>h("tr",{key:s.id},
               h("td",{style:{fontFamily:"var(--mono)",fontWeight:600,color:"var(--p)",fontSize:12}},s.sample_no),

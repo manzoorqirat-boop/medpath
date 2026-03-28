@@ -14,6 +14,7 @@ app.use(helmet());
 app.use(cors({ origin: "*" }));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
+app.set("trust proxy", 1);
 app.use(rateLimit({ windowMs: 900000, max: 300 }));
 
 app.use(express.static(require("path").join(__dirname, "../public")));

@@ -10,10 +10,22 @@
   <style>
     * { margin:0; padding:0; box-sizing:border-box; }
     body { font-family: Georgia, serif; background: #F5F8FA; }
+    #loading { display:flex; alignItems:center; justifyContent:center; height:100vh; flexDirection:column; }
   </style>
 </head>
 <body>
+  <div id="loading" style="display:flex;align-items:center;justify-content:center;height:100vh;flex-direction:column;">
+    <div style="font-size:60px;">🔬</div>
+    <h2 style="color:#0A1628;margin-top:16px;">MedPath LIS</h2>
+    <p style="color:#8A9BB0;margin-top:8px;">Loading application...</p>
+  </div>
   <div id="root"></div>
-  <script src="/app.js" type="text/babel"></script>
+  <script>
+    // Load app.js after page renders
+    window.addEventListener("load", function() {
+      document.getElementById("loading").style.display = "none";
+    });
+  </script>
+  <script src="/app.js" type="text/babel" data-presets="react"></script>
 </body>
 </html>

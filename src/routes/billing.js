@@ -1,10 +1,12 @@
 const router = require("express").Router();
+const crypto = require("crypto");
 const { query } = require("../db");
 const { authenticate, authorize } = require("../middleware/auth");
 const { notifyPaymentSuccess } = require("../utils/notify");
 
 router.use(authenticate);
 
+/* ─── Admin Summary ─── */
 router.get("/admin/summary", authorize("admin"), async (req, res, next) => {
   try {
     const { rows: [summary] } = await query(`
@@ -22,6 +24,7 @@ router.get("/admin/summary", authorize("admin"), async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
+/* ─── List Invoices ─── */
 router.get("/", async (req, res, next) => {
   try {
     const { paid, patientId, page=1, limit=20 } = req.query;
@@ -57,6 +60,7 @@ router.get("/", async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
+/* ─── Single Invoice ─── */
 router.get("/:id", async (req, res, next) => {
   try {
     const { rows: [inv] } = await query(`
@@ -72,6 +76,7 @@ router.get("/:id", async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
+/* ─── Apply Discount (Admin) ─── */
 router.patch("/:id/discount", authorize("admin"), async (req, res, next) => {
   try {
     const { discount, reason } = req.body;
@@ -85,6 +90,7 @@ router.patch("/:id/discount", authorize("admin"), async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
+/* ─── Mark Paid (Cash/Manual — for staff use) ─── */
 router.patch("/:id/pay", async (req, res, next) => {
   try {
     const { payment_mode, payment_ref } = req.body;
@@ -103,6 +109,105 @@ router.patch("/:id/pay", async (req, res, next) => {
     if (pat) notifyPaymentSuccess({ ...pat, invoiceNo: inv.invoice_no, amount: inv.total }).catch(()=>{});
 
     res.json({ invoice: updated });
+  } catch (err) { next(err); }
+});
+
+/* ─────────────────────────────────────────────────────────
+   ONLINE PAYMENT — RAZORPAY INTEGRATION
+   ─────────────────────────────────────────────────────────
+   Set these environment variables to enable online payment:
+     RAZORPAY_KEY_ID      — from Razorpay dashboard
+     RAZORPAY_KEY_SECRET  — from Razorpay dashboard
+   ───────────────────────────────────────────────────────── */
+
+/**
+ * POST /api/billing/:id/initiate-payment
+ * Creates a Razorpay order for the given invoice.
+ * Returns: { order_id, amount, currency, key_id }
+ */
+router.post("/:id/initiate-payment", async (req, res, next) => {
+  try {
+    if (!process.env.RAZORPAY_KEY_ID || !process.env.RAZORPAY_KEY_SECRET) {
+      return res.status(503).json({ error: "Online payment is not configured. Please contact reception." });
+    }
+
+    const { rows: [inv] } = await query("SELECT * FROM invoices WHERE id=$1", [req.params.id]);
+    if (!inv) return res.status(404).json({ error: "Invoice not found" });
+    if (inv.paid) return res.status(400).json({ error: "This invoice has already been paid." });
+
+    // Dynamically require Razorpay — graceful fallback if package not installed
+    let Razorpay;
+    try { Razorpay = require("razorpay"); }
+    catch (e) { return res.status(503).json({ error: "Razorpay package not installed. Run: npm install razorpay" }); }
+
+    const rzp = new Razorpay({
+      key_id: process.env.RAZORPAY_KEY_ID,
+      key_secret: process.env.RAZORPAY_KEY_SECRET,
+    });
+
+    const order = await rzp.orders.create({
+      amount: Math.round(Number(inv.total) * 100), // Razorpay expects paise
+      currency: "INR",
+      receipt: inv.invoice_no,
+      notes: { invoice_id: inv.id, invoice_no: inv.invoice_no },
+    });
+
+    res.json({
+      order_id: order.id,
+      amount: order.amount,
+      currency: order.currency,
+      key_id: process.env.RAZORPAY_KEY_ID,
+    });
+  } catch (err) { next(err); }
+});
+
+/**
+ * POST /api/billing/:id/verify-payment
+ * Verifies the Razorpay payment signature and marks invoice as paid.
+ * Body: { razorpay_payment_id, razorpay_order_id, razorpay_signature }
+ */
+router.post("/:id/verify-payment", async (req, res, next) => {
+  try {
+    const { razorpay_payment_id, razorpay_order_id, razorpay_signature } = req.body;
+
+    if (!razorpay_payment_id || !razorpay_order_id || !razorpay_signature) {
+      return res.status(400).json({ error: "Missing payment verification fields." });
+    }
+
+    if (!process.env.RAZORPAY_KEY_SECRET) {
+      return res.status(503).json({ error: "Payment gateway not configured." });
+    }
+
+    // Verify Razorpay signature
+    const expectedSignature = crypto
+      .createHmac("sha256", process.env.RAZORPAY_KEY_SECRET)
+      .update(razorpay_order_id + "|" + razorpay_payment_id)
+      .digest("hex");
+
+    if (expectedSignature !== razorpay_signature) {
+      return res.status(400).json({ error: "Payment verification failed. Invalid signature." });
+    }
+
+    // Fetch invoice
+    const { rows: [inv] } = await query("SELECT * FROM invoices WHERE id=$1", [req.params.id]);
+    if (!inv) return res.status(404).json({ error: "Invoice not found" });
+    if (inv.paid) return res.status(400).json({ error: "Invoice already marked as paid." });
+
+    // Mark invoice as paid
+    const { rows: [updated] } = await query(`
+      UPDATE invoices
+      SET paid=true, payment_mode='Online', payment_ref=$1, payment_time=NOW()
+      WHERE id=$2 RETURNING *`,
+      [razorpay_payment_id, req.params.id]);
+
+    // Notify patient
+    const { rows: [pat] } = await query(`
+      SELECT u.name, u.phone, u.email
+      FROM patients p JOIN users u ON u.id=p.user_id
+      WHERE p.id=$1`, [inv.patient_id]);
+    if (pat) notifyPaymentSuccess({ ...pat, invoiceNo: inv.invoice_no, amount: inv.total }).catch(()=>{});
+
+    res.json({ invoice: updated, message: "Payment verified and recorded successfully." });
   } catch (err) { next(err); }
 });
 

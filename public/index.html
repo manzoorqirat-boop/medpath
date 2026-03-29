@@ -1400,8 +1400,15 @@ function AdminApp({user,onLogout}) {
 function TechApp({user,onLogout}) {
   const [active,setActive]=useState("dashboard");
   const [samples,setSamples]=useState([]);
-  const nav=[{id:"dashboard",icon:"🏠",label:"Dashboard"},{id:"results",icon:"📝",label:"Results"},{id:"all",icon:"📋",label:"All Samples"}];
   const [allSamples,setAllSamples]=useState([]);
+  const [selected,setSelected]=useState(null);
+  const [params,setParams]=useState([]);
+  const [inputs,setInputs]=useState({});
+  const [techNotes,setTechNotes]=useState("");
+  const [saving,setSaving]=useState(false);
+  const [savedMsg,setSavedMsg]=useState("");
+  const [viewId,setViewId]=useState(null);
+  const nav=[{id:"dashboard",icon:"🏠",label:"Dashboard"},{id:"results",icon:"📝",label:"Results"},{id:"all",icon:"📋",label:"All Samples"}];
 
   useEffect(()=>{
     api("GET","/api/samples?limit=50").then(d=>{

@@ -1584,8 +1584,8 @@ function TechApp({user,onLogout}) {
           h("div",{className:"page-sub"},selected.sample_no+" · enter results")
         )
       ),
-      savedMsg&&h("div",{className:"alert "+(savedMsg.includes("Error")?"alert-err":"alert-ok")},savedMsg),
-      params.length===0&&h("div",{className:"card",style:{textAlign:"center",padding:30}},
+      savedMsg&&h("div",{className:"alert "+(savedMsg.includes("Error")||savedMsg.includes("Debug")||savedMsg.includes("No test")||savedMsg.includes("Sample has")?"alert-err":"alert-ok"),style:{wordBreak:"break-all"}},savedMsg),
+      params.length===0&&!savedMsg&&h("div",{className:"card",style:{textAlign:"center",padding:30}},
         h("div",{style:{fontSize:36,marginBottom:8}},"⚗️"),
         h("p",{style:{color:"var(--t3)",fontSize:13}},"No test parameters found. Add parameters in the Tests catalogue first."),
         h("button",{onClick:()=>setSelected(null),className:"btn",style:{marginTop:12,width:"auto",padding:"8px 20px"}},"← Back")

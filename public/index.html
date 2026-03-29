@@ -480,8 +480,8 @@ function Login({role,onLogin}) {
       ),
       role!=="Patient"&&h("div",null,
         h("div",{className:"form-group"},
-          h("label",null,"Email Address"),
-          h("input",{type:"email",value:staffEmail,onChange:e=>setStaffEmail(e.target.value),placeholder:"Enter your email",autoComplete:"username"})
+          h("label",null,"Username / Email"),
+          h("input",{type:"text",value:staffEmail,onChange:e=>setStaffEmail(e.target.value),placeholder:"Enter your username or email",autoComplete:"username"})
         ),
         h("div",{className:"form-group"},
           h("label",null,"Password"),

@@ -20,61 +20,95 @@ async function auditLog(data) {
       [data.userId||null, data.userName||null, data.userRole||null,
        data.action, data.category||"auth",
        data.ip||null, data.status||"success", data.notes||null]);
-  } catch(e) { /* silent */ }
+  } catch(e) {}
 }
 
 function getIP(req) {
   return req.headers["x-forwarded-for"]?.split(",")[0] || "unknown";
 }
 
-/* POST /api/auth/login — Staff login */
+/* ─── POST /api/auth/login — Staff login by username OR email ─── */
 router.post("/login", async (req, res) => {
   try {
     const { email, password } = req.body;
-    if (!email || !password) return res.status(400).json({ error: "Email and password required" });
+    if (!email || !password) return res.status(400).json({ error: "Username and password required" });
 
-    const { rows } = await query("SELECT * FROM users WHERE LOWER(email)=LOWER($1)", [email.trim()]);
-    const user = rows[0];
+    const input = email.trim().toLowerCase();
 
-    if (!user) return res.status(401).json({ error: "Invalid email or password" });
-    if (user.locked_at) return res.status(403).json({ error: "Account locked. Contact administrator." });
-    if (user.is_active === false) return res.status(403).json({ error: "Account deactivated." });
+    // Search by username first, then by email
+    let user = null;
+    try {
+      const r1 = await query("SELECT * FROM users WHERE LOWER(username)=$1", [input]);
+      if (r1.rows[0]) user = r1.rows[0];
+    } catch(e) {}
 
-    const valid = await bcrypt.compare(password, user.password_hash);
-    if (!valid) {
-      const attempts = (user.failed_attempts || 0) + 1;
-      const maxAttempts = parseInt(await getSetting("max_failed_attempts","3"));
-      const lock = attempts >= maxAttempts;
-      try { await query("UPDATE users SET failed_attempts=$1, locked_at=$2 WHERE id=$3", [attempts, lock?new Date():null, user.id]); } catch(e){}
-      if (lock) return res.status(403).json({ error: `Account locked after ${maxAttempts} failed attempts.` });
-      return res.status(401).json({ error: `Invalid password. ${maxAttempts-attempts} attempt(s) remaining.` });
+    if (!user) {
+      try {
+        const r2 = await query("SELECT * FROM users WHERE LOWER(email)=$1", [input]);
+        if (r2.rows[0]) user = r2.rows[0];
+      } catch(e) {}
     }
 
-    try { await query("UPDATE users SET failed_attempts=0, locked_at=NULL, last_login_at=NOW(), last_login_ip=$1 WHERE id=$2", [getIP(req), user.id]); } catch(e){}
+    if (!user) return res.status(401).json({ error: "Invalid username or password" });
 
+    // Check account status
+    try {
+      if (user.locked_at) return res.status(403).json({ error: "Account locked. Contact administrator." });
+      if (user.is_active === false) return res.status(403).json({ error: "Account deactivated. Contact administrator." });
+    } catch(e) {}
+
+    // Verify password
+    const valid = await bcrypt.compare(password, user.password_hash);
+    if (!valid) {
+      try {
+        const attempts = (user.failed_attempts || 0) + 1;
+        const maxAttempts = parseInt(await getSetting("max_failed_attempts","3"));
+        const lock = attempts >= maxAttempts;
+        await query("UPDATE users SET failed_attempts=$1, locked_at=$2 WHERE id=$3",
+          [attempts, lock ? new Date() : null, user.id]);
+        if (lock) return res.status(403).json({ error: `Account locked after ${maxAttempts} failed attempts.` });
+        return res.status(401).json({ error: `Invalid password. ${maxAttempts - attempts} attempt(s) remaining.` });
+      } catch(e) {
+        return res.status(401).json({ error: "Invalid username or password" });
+      }
+    }
+
+    // Reset failed attempts
+    try {
+      await query("UPDATE users SET failed_attempts=0, locked_at=NULL, last_login_at=NOW(), last_login_ip=$1 WHERE id=$2",
+        [getIP(req), user.id]);
+    } catch(e) {}
+
+    // Get staff details
     let designation="", qualification="", department="";
     try {
       const { rows:sr } = await query("SELECT designation,qualification,department FROM staff WHERE user_id=$1", [user.id]);
-      if(sr[0]){designation=sr[0].designation||"";qualification=sr[0].qualification||"";department=sr[0].department||"";}
-    } catch(e){}
+      if (sr[0]) { designation=sr[0].designation||""; qualification=sr[0].qualification||""; department=sr[0].department||""; }
+    } catch(e) {}
 
+    // Force password change check
     if (user.must_change_password) {
-      const token = jwt.sign({id:user.id,role:user.role}, SECRET, {expiresIn:"2h"});
-      return res.json({token, mustChangePassword:true, user:{id:user.id,name:user.name,email:user.email,role:user.role,designation}});
+      const token = jwt.sign({ id:user.id, role:user.role }, SECRET, { expiresIn:"2h" });
+      return res.json({ token, mustChangePassword:true,
+        user:{ id:user.id, name:user.name, email:user.email, username:user.username, role:user.role, designation } });
     }
 
     const sessionMins = parseInt(await getSetting("session_timeout","60"));
-    const token = jwt.sign({id:user.id, role:user.role}, SECRET, {expiresIn:sessionMins+"m"});
-    await auditLog({userId:user.id, userName:user.name, userRole:user.role, action:"LOGIN_SUCCESS", ip:getIP(req)});
+    const token = jwt.sign({ id:user.id, role:user.role }, SECRET, { expiresIn:sessionMins+"m" });
 
-    res.json({token, user:{id:user.id, name:user.name, email:user.email, role:user.role, designation, qualification, department, phone:user.phone}});
+    await auditLog({ userId:user.id, userName:user.name, userRole:user.role, action:"LOGIN_SUCCESS", ip:getIP(req) });
+
+    res.json({ token, user:{
+      id:user.id, name:user.name, email:user.email, username:user.username||"",
+      role:user.role, designation, qualification, department, phone:user.phone
+    }});
   } catch(err) {
     console.error("Login error:", err);
-    res.status(500).json({ error: "Login failed: " + err.message });
+    res.status(500).json({ error: "Login error: " + err.message });
   }
 });
 
-/* POST /api/auth/change-password */
+/* ─── POST /api/auth/change-password ─── */
 router.post("/change-password", async (req, res) => {
   try {
     const { userId, currentPassword, newPassword } = req.body;
@@ -86,39 +120,49 @@ router.post("/change-password", async (req, res) => {
     if (newPassword.length < 8) return res.status(400).json({ error: "Password must be at least 8 characters" });
     const hash = await bcrypt.hash(newPassword, 12);
     await query("UPDATE users SET password_hash=$1, must_change_password=false, temp_password_hash=NULL, password_changed_at=NOW() WHERE id=$2", [hash, userId]);
-    try { await query("INSERT INTO password_history(user_id,password_hash) VALUES($1,$2)", [userId, hash]); } catch(e){}
+    try { await query("INSERT INTO password_history(user_id,password_hash) VALUES($1,$2)", [userId, hash]); } catch(e) {}
     res.json({ message: "Password changed successfully" });
   } catch(err) {
     res.status(500).json({ error: "Error: " + err.message });
   }
 });
 
-/* POST /api/auth/otp/send */
+/* ─── POST /api/auth/otp/send ─── */
 router.post("/otp/send", async (req, res) => {
+  // TODO: integrate real SMS. For now always return success.
   res.json({ message: "OTP sent", phone: req.body.phone });
 });
 
-/* POST /api/auth/otp/verify — Patient login */
+/* ─── POST /api/auth/otp/verify — Patient login by mobile ─── */
 router.post("/otp/verify", async (req, res) => {
   try {
     const { phone, otp, name, dob, gender, blood_group, email } = req.body;
 
-    if (!phone) return res.status(400).json({ error: "Phone number required" });
+    if (!phone) return res.status(400).json({ error: "Mobile number required" });
     if (!otp)   return res.status(400).json({ error: "OTP required" });
-    if (otp !== "123456") return res.status(401).json({ error: "Invalid OTP. Use 123456" });
+    if (otp !== "123456") return res.status(401).json({ error: "Invalid OTP. Default OTP is 123456" });
 
-    // Find user by phone
-    const { rows } = await query("SELECT * FROM users WHERE phone=$1", [phone]);
-    let user = rows[0] || null;
+    // Find user by phone number
+    let user = null;
+    try {
+      const { rows } = await query("SELECT * FROM users WHERE phone=$1", [phone]);
+      user = rows[0] || null;
+    } catch(e) {
+      return res.status(500).json({ error: "Database error: " + e.message });
+    }
 
-    // New registration
+    // Auto-register new patient
     if (!user) {
       if (!name) return res.status(400).json({ error: "Name required for new registration" });
-      const hash = await bcrypt.hash("patient123", 10);
-      const ins = await query(
-        "INSERT INTO users(name,phone,email,role,password_hash) VALUES($1,$2,$3,'patient',$4) RETURNING *",
-        [name, phone, email||null, hash]);
-      user = ins.rows[0];
+      try {
+        const hash = await bcrypt.hash("patient123", 10);
+        const ins = await query(
+          "INSERT INTO users(name,phone,email,role,password_hash) VALUES($1,$2,$3,'patient',$4) RETURNING *",
+          [name, phone, email||null, hash]);
+        user = ins.rows[0];
+      } catch(e) {
+        return res.status(500).json({ error: "Registration error: " + e.message });
+      }
 
       // Create patient record
       try {
@@ -128,11 +172,14 @@ router.post("/otp/verify", async (req, res) => {
           "INSERT INTO patients(user_id,patient_no,date_of_birth,gender,blood_group) VALUES($1,$2,$3,$4,$5)",
           [user.id, patNo, dob||null, gender||null, blood_group||null]);
       } catch(e) {
-        console.error("Patient record error:", e.message);
+        console.error("Patient record error (non-fatal):", e.message);
       }
     }
 
-    if (user.is_active === false) return res.status(403).json({ error: "Account deactivated. Contact reception." });
+    // Check active
+    try {
+      if (user.is_active === false) return res.status(403).json({ error: "Account deactivated. Contact reception." });
+    } catch(e) {}
 
     // Get patient record
     let patientId = null, patientNo = null;
@@ -144,11 +191,14 @@ router.post("/otp/verify", async (req, res) => {
     // Update last login
     try { await query("UPDATE users SET last_login_at=NOW() WHERE id=$1", [user.id]); } catch(e) {}
 
-    const token = jwt.sign({ id: user.id, role: "patient" }, SECRET, { expiresIn: "8h" });
+    const token = jwt.sign({ id:user.id, role:"patient" }, SECRET, { expiresIn:"8h" });
 
     return res.json({
       token,
-      user: { id:user.id, name:user.name, phone:user.phone, email:user.email, role:"patient", patientId, patientNo }
+      user: {
+        id:user.id, name:user.name, phone:user.phone,
+        email:user.email, role:"patient", patientId, patientNo
+      }
     });
   } catch(err) {
     console.error("OTP verify error:", err);
@@ -156,7 +206,7 @@ router.post("/otp/verify", async (req, res) => {
   }
 });
 
-/* POST /api/auth/unlock/:userId */
+/* ─── POST /api/auth/unlock/:userId ─── */
 router.post("/unlock/:userId", async (req, res) => {
   try {
     await query("UPDATE users SET locked_at=NULL, failed_attempts=0 WHERE id=$1", [req.params.userId]);

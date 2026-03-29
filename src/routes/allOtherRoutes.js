@@ -66,7 +66,7 @@ router1.put("/:id", authenticate, authorize("admin"), async (req, res, next) => 
 router1.get("/:id/parameters", async (req, res, next) => {
   try {
     const { rows: [test] } = await query(
-      "SELECT id FROM test_catalogue WHERE id=$1 OR code=$1",
+      "SELECT id FROM test_catalogue WHERE id::text=$1 OR code=$1",
       [req.params.id]);
     if (!test) return res.status(404).json({ error: "Test not found" });
     const { rows } = await query(
@@ -80,17 +80,22 @@ router1.get("/:id/parameters", async (req, res, next) => {
 router1.post("/:id/parameters", authenticate, authorize("admin"), async (req, res, next) => {
   try {
     const {
-      param_name, unit,
+      param_name, unit, price,
       range_male_min, range_male_max,
       range_female_min, range_female_max,
       range_text, display_order
     } = req.body;
     if (!param_name) return res.status(400).json({ error: "param_name is required" });
+    // Resolve test id
+    const { rows: [test] } = await query(
+      "SELECT id FROM test_catalogue WHERE id::text=$1 OR code=$1",
+      [req.params.id]);
+    if (!test) return res.status(404).json({ error: "Test not found" });
     const { rows: [p] } = await query(`
       INSERT INTO test_parameters
-        (test_id,param_name,unit,range_male_min,range_male_max,range_female_min,range_female_max,range_text,display_order)
-      VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING *`,
-      [req.params.id, param_name, unit||null,
+        (test_id,param_name,unit,price,range_male_min,range_male_max,range_female_min,range_female_max,range_text,display_order)
+      VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) RETURNING *`,
+      [test.id, param_name, unit||null, Number(price)||0,
        range_male_min||null, range_male_max||null,
        range_female_min||null, range_female_max||null,
        range_text||null, display_order||0]);
@@ -102,19 +107,19 @@ router1.post("/:id/parameters", authenticate, authorize("admin"), async (req, re
 router1.put("/parameters/:paramId", authenticate, authorize("admin"), async (req, res, next) => {
   try {
     const {
-      param_name, unit,
+      param_name, unit, price,
       range_male_min, range_male_max,
       range_female_min, range_female_max,
       range_text, display_order
     } = req.body;
     const { rows: [p] } = await query(`
       UPDATE test_parameters
-      SET param_name=$1, unit=$2,
-          range_male_min=$3, range_male_max=$4,
-          range_female_min=$5, range_female_max=$6,
-          range_text=$7, display_order=$8
-      WHERE id=$9 RETURNING *`,
-      [param_name, unit||null,
+      SET param_name=$1, unit=$2, price=$3,
+          range_male_min=$4, range_male_max=$5,
+          range_female_min=$6, range_female_max=$7,
+          range_text=$8, display_order=$9
+      WHERE id=$10 RETURNING *`,
+      [param_name, unit||null, Number(price)||0,
        range_male_min||null, range_male_max||null,
        range_female_min||null, range_female_max||null,
        range_text||null, display_order||0,

@@ -98,8 +98,9 @@ router.post("/sample/:sampleId/test/:testId", authorize("technician","admin"), a
     }
     
     // ✅ FIXED: Verify at least one result is provided
-    if (!results.length) {
-      return res.status(400).json({ error: "No results provided" });
+    const filledResults = results.filter(r => r.value);
+    if (!filledResults.length) {
+      return res.status(400).json({ error: "Enter at least one value" });
     }
     
     let report;
@@ -115,10 +116,11 @@ router.post("/sample/:sampleId/test/:testId", authorize("technician","admin"), a
         [req.params.sampleId,req.params.testId,req.user.id,tech_notes||null,reportNo]);
       await client.query("DELETE FROM report_results WHERE report_id=$1",[rpt.id]);
       for (const r of results) {
+        // Save all results including empty ones (partial support)
         await client.query(`
           INSERT INTO report_results(report_id,param_name,value,unit,flag,ref_range)
           VALUES($1,$2,$3,$4,$5,$6)`,
-          [rpt.id,r.param_name,r.value,r.unit||"",r.flag||"Normal",r.ref_range||""]);
+          [rpt.id,r.param_name,r.value||"",r.unit||"",r.flag||"Normal",r.ref_range||""]);
       }
       await client.query(
         "UPDATE sample_tests SET status='Reported' WHERE sample_id=$1 AND test_id=$2",

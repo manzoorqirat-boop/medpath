@@ -808,8 +808,6 @@ function PatientApp({user,onLogout}) {
   }
 
   function Billing() {
-    const paid=bills.filter(b=>b.paid).reduce((s,b)=>s+Number(b.total),0);
-    const due=bills.filter(b=>!b.paid).reduce((s,b)=>s+Number(b.total),0);
     return h("div",{className:"fade-in"},
       h("div",{className:"page-header"},
         h("div",{className:"page-title"},"Billing & Payments"),
@@ -830,9 +828,8 @@ function PatientApp({user,onLogout}) {
           h("thead",null,h("tr",null,["Invoice","Tests","Date","Amount","Status","Action"].map(c=>h("th",{key:c},c)))),
           h("tbody",null,
             bills.map(b=>h("tr",{key:b.id},
-              h("td",{style:{fontFamily:"var(--mono)",fontWeight:600,color:"var(--p)",fontSize:12}},b.invoice_no),
-              h("td",{style:{fontSize:12,color:"var(--t2)"}},(b.test_names||[]).join(", ").substring(0,30)||"—"),
-              h("td",{style:{fontSize:11,color:"var(--t3)",fontFamily:"var(--mono)"}},new Date(b.created_at).toLocaleDateString()),
+              h("td",null,h("span",{onClick:()=>setViewInvoice(b),style:{fontFamily:"var(--mono)",fontWeight:700,color:"var(--p)",fontSize:12,cursor:"pointer",textDecoration:"underline"}},b.invoice_no)),
+              h("td",{style:{fontSize:11,color:"var(--t3)",fontFamily:"var(--mono)"}},new Date(b.created_at).toLocaleDateString("en-IN")),
               h("td",{style:{fontFamily:"var(--serif)",fontWeight:600}},"₹"+b.total),
               h("td",null,h(Badge,{label:b.paid?"Paid":"Due",type:b.paid?"ok":"danger"})),
               h("td",null,!b.paid&&h("button",{onClick:()=>payOnline(b),className:"btn sm",style:{background:"#5B4CF0",color:"#fff",border:"none"}},"Pay Online"))

@@ -382,10 +382,9 @@ function Login({role,onLogin}) {
   const [dob,setDob]=useState("");
   const [gender,setGender]=useState("");
   const [bloodGroup,setBloodGroup]=useState("");
-  const [email,setEmail]=useState("");
+  const [staffEmail,setStaffEmail]=useState("");
   const [loading,setLoading]=useState(false);
   const [err,setErr]=useState("");
-  const [email,setEmail]=useState("");
 
   async function sendOtp() {
     if(!phone||phone.length<10){setErr("Please enter valid 10-digit mobile number.");return;}
@@ -404,7 +403,7 @@ function Login({role,onLogin}) {
   async function staffLogin() {
     if(!email||!pw){setErr("Please enter your email and password.");return;}
     setLoading(true);setErr("");
-    const data=await api("POST","/api/auth/login",{email:email.trim(),password:pw});
+    const data=await api("POST","/api/auth/login",{email:staffEmail.trim(),password:pw});
     setLoading(false);
     if(data.token){TOKEN=data.token;sessionStorage.setItem("mp_token",data.token);sessionStorage.setItem("mp_user",JSON.stringify(data.user));sessionStorage.setItem("mp_role",data.user.role.charAt(0).toUpperCase()+data.user.role.slice(1));onLogin(data.user);}
     else setErr(data.error||"Invalid credentials.");
@@ -482,7 +481,7 @@ function Login({role,onLogin}) {
       role!=="Patient"&&h("div",null,
         h("div",{className:"form-group"},
           h("label",null,"Email Address"),
-          h("input",{type:"email",value:email,onChange:e=>setEmail(e.target.value),placeholder:"Enter your email",autoComplete:"username"})
+          h("input",{type:"email",value:staffEmail,onChange:e=>setStaffEmail(e.target.value),placeholder:"Enter your email",autoComplete:"username"})
         ),
         h("div",{className:"form-group"},
           h("label",null,"Password"),

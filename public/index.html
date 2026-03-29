@@ -352,7 +352,7 @@ function Login({role,onLogin}) {
     setLoading(true);setErr("");
     const data=await api("POST","/api/auth/otp/verify",{phone,otp});
     setLoading(false);
-    if(data.token){TOKEN=data.token;onLogin({...data.user,patientId:data.user.patientId});}
+    if(data.token){TOKEN=data.token;sessionStorage.setItem("mp_token",data.token);sessionStorage.setItem("mp_user",JSON.stringify({...data.user,patientId:data.user.patientId}));sessionStorage.setItem("mp_role","Patient");onLogin({...data.user,patientId:data.user.patientId});}
     else setErr(data.error||"Invalid OTP. Please try again.");
   }
   async function staffLogin() {
@@ -360,7 +360,7 @@ function Login({role,onLogin}) {
     setLoading(true);setErr("");
     const data=await api("POST","/api/auth/login",{email:email.trim(),password:pw});
     setLoading(false);
-    if(data.token){TOKEN=data.token;onLogin(data.user);}
+    if(data.token){TOKEN=data.token;sessionStorage.setItem("mp_token",data.token);sessionStorage.setItem("mp_user",JSON.stringify(data.user));sessionStorage.setItem("mp_role",data.user.role.charAt(0).toUpperCase()+data.user.role.slice(1));onLogin(data.user);}
     else setErr(data.error||"Invalid credentials.");
   }
 

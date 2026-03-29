@@ -136,45 +136,72 @@ router.post("/otp/send", async (req, res, next) => {
 });
 
 /* POST /api/auth/otp/verify */
-router.post("/otp/verify", async (req, res, next) => {
+router.post("/otp/verify", async (req, res) => {
   try {
     const { phone, otp, name, dob, gender, blood_group, email } = req.body;
     if (!phone || !otp) return res.status(400).json({ error: "Phone and OTP required" });
     if (otp !== "123456") return res.status(401).json({ error: "Invalid OTP" });
 
-    let { rows:[user] } = await query("SELECT * FROM users WHERE phone=$1", [phone]);
-
-    if (!user) {
-      if (!name) return res.status(400).json({ error: "Name required for new registration" });
-      const { rows:[nu] } = await query(
-        "INSERT INTO users(name,phone,email,role,password_hash) VALUES($1,$2,$3,'patient',$4) RETURNING *",
-        [name, phone, email||null, await bcrypt.hash("patient123",10)]);
-      try {
-        const { rows:[{val}] } = await query("SELECT nextval('seq_patient_no') AS val");
-        const patNo = "PAT-"+String(val).padStart(4,"0");
-        await query("INSERT INTO patients(user_id,patient_no,date_of_birth,gender,blood_group) VALUES($1,$2,$3,$4,$5)",
-          [nu.id, patNo, dob||null, gender||null, blood_group||null]);
-      } catch(e) {}
-      user = nu;
+    // Find existing user by phone
+    let user = null;
+    try {
+      const r = await query("SELECT * FROM users WHERE phone=$1", [phone]);
+      user = r.rows[0] || null;
+    } catch(e) {
+      return res.status(500).json({ error: "Database error finding user: " + e.message });
     }
 
-    if (user.is_active === false) return res.status(403).json({ error: "Account deactivated." });
+    // New patient registration
+    if (!user) {
+      if (!name) return res.status(400).json({ error: "Name required for new registration" });
+      try {
+        const hash = await bcrypt.hash("patient123", 10);
+        const r = await query(
+          "INSERT INTO users(name,phone,email,role,password_hash) VALUES($1,$2,$3,'patient',$4) RETURNING *",
+          [name, phone, email||null, hash]);
+        user = r.rows[0];
+      } catch(e) {
+        return res.status(500).json({ error: "Error creating user: " + e.message });
+      }
 
+      // Create patient record
+      try {
+        const seqR = await query("SELECT nextval('seq_patient_no') AS val");
+        const patNo = "PAT-" + String(seqR.rows[0].val).padStart(4,"0");
+        await query(
+          "INSERT INTO patients(user_id,patient_no,date_of_birth,gender,blood_group) VALUES($1,$2,$3,$4,$5)",
+          [user.id, patNo, dob||null, gender||null, blood_group||null]);
+      } catch(e) { /* patient record creation failed - non-fatal */ }
+    }
+
+    // Check active status safely
+    if (user.is_active === false) {
+      return res.status(403).json({ error: "Account deactivated. Contact reception." });
+    }
+
+    // Get patient record
     let patientId = null, patientNo = null;
     try {
-      const { rows:[pat] } = await query("SELECT * FROM patients WHERE user_id=$1", [user.id]);
-      if (pat) { patientId=pat.id; patientNo=pat.patient_no; }
-    } catch(e) {}
+      const pr = await query("SELECT id, patient_no FROM patients WHERE user_id=$1", [user.id]);
+      if (pr.rows[0]) { patientId = pr.rows[0].id; patientNo = pr.rows[0].patient_no; }
+    } catch(e) { /* non-fatal */ }
 
-    const token = jwt.sign({ id:user.id, role:"patient" }, SECRET, { expiresIn:"8h" });
-    try {
-      await query("UPDATE users SET last_login_at=NOW() WHERE id=$1", [user.id]);
-    } catch(e) {}
+    // Update last login
+    try { await query("UPDATE users SET last_login_at=NOW() WHERE id=$1", [user.id]); } catch(e) {}
 
-    res.json({ token, user:{ id:user.id, name:user.name, phone:user.phone,
-      email:user.email, role:"patient", patientId, patientNo }});
-  } catch(err) { next(err); }
+    const token = jwt.sign({ id: user.id, role: "patient" }, SECRET, { expiresIn: "8h" });
+    return res.json({
+      token,
+      user: {
+        id: user.id, name: user.name, phone: user.phone,
+        email: user.email, role: "patient", patientId, patientNo
+      }
+    });
+  } catch(err) {
+    return res.status(500).json({ error: "Server error: " + err.message });
+  }
 });
+
 
 /* POST /api/auth/unlock/:userId */
 router.post("/unlock/:userId", async (req, res, next) => {

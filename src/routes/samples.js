@@ -181,11 +181,11 @@ router.post("/", authorize("admin","patient"), async function(req, res, next) {
       [smpNo, invoice.rows[0].id, patient_id, collection_type, priority]
     );
 
-    // Link tests and selected parameters
+    // ✅ LINK TESTS TO SAMPLE — THIS IS THE KEY FIX
     for (var row2 of testRows) {
       await query("INSERT INTO sample_tests(sample_id,test_id) VALUES($1,$2)",
         [sample.rows[0].id, row2.test.id]);
-      // Store selected params
+      // Store selected params if using param mode
       if (row2.booking.selected_param_ids && row2.booking.selected_param_ids.length) {
         for (var pid of row2.booking.selected_param_ids) {
           await query(

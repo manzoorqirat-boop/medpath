@@ -357,23 +357,29 @@ function RoleSelect({onSelect}) {
 function Login({role,onLogin}) {
   const [pw,setPw]=useState("");
   const [phone,setPhone]=useState("+91");
-  const [otp,setOtp]=useState("");
+  const [otp,setOtp]=useState("123456");
   const [step,setStep]=useState(1);
+  const [name,setName]=useState("");
+  const [dob,setDob]=useState("");
+  const [gender,setGender]=useState("");
+  const [bloodGroup,setBloodGroup]=useState("");
+  const [email,setEmail]=useState("");
   const [loading,setLoading]=useState(false);
   const [err,setErr]=useState("");
   const [email,setEmail]=useState("");
 
   async function sendOtp() {
-    if(!phone){setErr("Please enter your mobile number.");return;}
+    if(!phone||phone.length<10){setErr("Please enter valid 10-digit mobile number.");return;}
     setLoading(true);setErr("");
-    await api("POST","/api/auth/otp/send",{phone});
+    await api("POST","/api/auth/otp/send",{phone:"+91"+phone});
     setLoading(false);setStep(2);
   }
   async function verifyOtp() {
     setLoading(true);setErr("");
-    const data=await api("POST","/api/auth/otp/verify",{phone,otp});
+    const data=await api("POST","/api/auth/otp/verify",{phone:"+91"+phone,otp,name:name||undefined,dob:dob||undefined,gender:gender||undefined,blood_group:bloodGroup||undefined,email:email||undefined});
     setLoading(false);
     if(data.token){TOKEN=data.token;sessionStorage.setItem("mp_token",data.token);sessionStorage.setItem("mp_user",JSON.stringify({...data.user,patientId:data.user.patientId}));sessionStorage.setItem("mp_role","Patient");onLogin({...data.user,patientId:data.user.patientId});}
+    else if(data.error==="Name required for new registration"){setStep(3);setErr("");}
     else setErr(data.error||"Invalid OTP. Please try again.");
   }
   async function staffLogin() {
@@ -403,20 +409,56 @@ function Login({role,onLogin}) {
       role==="Patient"&&step===1&&h("div",null,
         h("div",{className:"form-group"},
           h("label",null,"Mobile Number"),
-          h("input",{value:phone,onChange:e=>setPhone(e.target.value),placeholder:"+91 9XXXXXXXXX"})
+          h("div",{style:{display:"flex",gap:8,alignItems:"center"}},
+          h("div",{style:{padding:"9px 13px",border:"1px solid var(--b1)",borderRadius:"var(--r-md)",background:"var(--surface2)",fontSize:13,fontWeight:600,color:"var(--t2)",flexShrink:0}},"+91"),
+          h("input",{value:phone,onChange:e=>setPhone(e.target.value.replace(/[^0-9]/g,"")),placeholder:"9876543210",maxLength:10,style:{flex:1}})
+        )
         ),
         
         h("button",{onClick:sendOtp,disabled:loading,className:"btn primary"},loading?"Sending OTP...":"Send OTP →")
       ),
       role==="Patient"&&step===2&&h("div",null,
-        h("p",{style:{fontSize:13,color:"var(--t2)",marginBottom:14}},"OTP sent to "+phone),
+        h("p",{style:{fontSize:13,color:"var(--t2)",marginBottom:14}},"OTP sent to +91"+phone),
         h("div",{className:"form-group"},
           h("label",null,"Enter OTP"),
           h("input",{value:otp,onChange:e=>setOtp(e.target.value),placeholder:"123456",style:{textAlign:"center",letterSpacing:8,fontSize:22,fontFamily:"var(--mono)"}})
         ),
-        
+        h("p",{style:{fontSize:11,color:"var(--t3)",marginBottom:14,textAlign:"center",fontFamily:"var(--mono)"}},"Default OTP: 123456"),
         h("button",{onClick:verifyOtp,disabled:loading,className:"btn primary",style:{marginBottom:10}},loading?"Verifying...":"Verify & Login →"),
         h("button",{onClick:()=>setStep(1),className:"btn",style:{width:"100%"}},"← Change Number")
+      ),
+      role==="Patient"&&step===3&&h("div",null,
+        h("p",{style:{fontSize:13,color:"var(--t2)",marginBottom:6}},"Welcome! Complete your profile to continue."),
+        h("div",{className:"form-group"},
+          h("label",null,"Full Name *"),
+          h("input",{value:name,onChange:e=>setName(e.target.value),placeholder:"Enter your full name"})
+        ),
+        h("div",{className:"form-group"},
+          h("label",null,"Date of Birth"),
+          h("input",{type:"date",value:dob,onChange:e=>setDob(e.target.value)})
+        ),
+        h("div",{className:"form-grid"},
+          h("div",{className:"form-group"},
+            h("label",null,"Gender"),
+            h("select",{value:gender,onChange:e=>setGender(e.target.value)},
+              h("option",{value:""},"Select"),
+              ["Male","Female","Other"].map(g=>h("option",{key:g,value:g},g))
+            )
+          ),
+          h("div",{className:"form-group"},
+            h("label",null,"Blood Group"),
+            h("select",{value:bloodGroup,onChange:e=>setBloodGroup(e.target.value)},
+              h("option",{value:""},"Select"),
+              ["A+","A-","B+","B-","AB+","AB-","O+","O-"].map(g=>h("option",{key:g,value:g},g))
+            )
+          )
+        ),
+        h("div",{className:"form-group"},
+          h("label",null,"Email (Optional)"),
+          h("input",{type:"email",value:email,onChange:e=>setEmail(e.target.value),placeholder:"patient@email.com"})
+        ),
+        h("button",{onClick:verifyOtp,disabled:loading||!name,className:"btn primary",style:{marginBottom:10}},loading?"Registering...":"Complete Registration →"),
+        h("button",{onClick:()=>setStep(2),className:"btn",style:{width:"100%"}},"← Back")
       ),
       role!=="Patient"&&h("div",null,
         h("div",{className:"form-group"},

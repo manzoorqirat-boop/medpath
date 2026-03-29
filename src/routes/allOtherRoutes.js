@@ -65,9 +65,13 @@ router1.put("/:id", authenticate, authorize("admin"), async (req, res, next) => 
 // GET /api/tests/:id/parameters
 router1.get("/:id/parameters", async (req, res, next) => {
   try {
+    const { rows: [test] } = await query(
+      "SELECT id FROM test_catalogue WHERE id=$1 OR code=$1",
+      [req.params.id]);
+    if (!test) return res.status(404).json({ error: "Test not found" });
     const { rows } = await query(
       "SELECT * FROM test_parameters WHERE test_id=$1 ORDER BY display_order",
-      [req.params.id]);
+      [test.id]);
     res.json({ parameters: rows });
   } catch (err) { next(err); }
 });

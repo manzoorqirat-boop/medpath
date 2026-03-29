@@ -1459,13 +1459,6 @@ function TechApp({user,onLogout}) {
   }
 
   function Results() {
-    const [selected,setSelected]=useState(null);
-    const [params,setParams]=useState([]);
-    const [inputs,setInputs]=useState({});
-    const [techNotes,setTechNotes]=useState("");
-    const [saving,setSaving]=useState(false);
-    const [savedMsg,setSavedMsg]=useState("");
-    const [viewId,setViewId]=useState(null);
     const queue=samples.filter(s=>s.status==="Collected"||s.status==="Processing");
 
     async function loadSample(s) {

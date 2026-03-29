@@ -567,6 +567,8 @@ function PatientApp({user,onLogout}) {
   const [tests,setTests]=useState([]);
   const [samples,setSamples]=useState([]);
   const [bills,setBills]=useState([]);
+  const [expanded,setExpanded]=useState(null);
+  const [paramSelections,setParamSelections]=useState({});
   const nav=[
     {id:"dashboard",icon:"🏠",label:"Dashboard"},
     {id:"tests",icon:"🧪",label:"Book Tests"},
@@ -648,8 +650,6 @@ function PatientApp({user,onLogout}) {
 
   function Tests() {
     const [search,setSearch]=useState("");
-    const [expanded,setExpanded]=useState(null);
-    const [paramSelections,setParamSelections]=useState({});
 
     const getSelection=testId=>paramSelections[testId]||{mode:"full",selectedParamIds:[]};
     const inCart=id=>cart.find(c=>c.id===id);

@@ -589,8 +589,17 @@ function PatientApp({user,onLogout}) {
   async function bookTests() {
     if(!cart.length)return;
     if(!user.patientId){alert("Patient ID not found. Please contact reception.");return;}
-    const data=await api("POST","/api/samples",{patient_id:user.patientId,test_ids:cart.map(t=>t.id),collection_type:"Walk-in",priority:"Normal"});
-    if(data.sample){setSamples(prev=>[data.sample,...prev]);setCart([]);alert("Tests booked! Sample: "+data.sample.sample_no);}
+    const bookings=cart.map(t=>t._booking||{test_id:t.id,mode:"full",selected_param_ids:[]});
+    const data=await api("POST","/api/samples",{patient_id:user.patientId,bookings,priority:"Normal",collection_type:"Walk-in"});
+    if(data.sample){
+      setSamples(prev=>[data.sample,...prev]);
+      setCart([]);
+      setParamSelections({});
+      setExpanded(null);
+      // Refresh billing
+      api("GET","/api/billing").then(d=>{if(d.invoices)setBills(d.invoices);});
+      alert("Tests booked! Sample: "+data.sample.sample_no);
+    }
     else alert("Error: "+(data.error||"Booking failed"));
   }
   async function payOnline(inv) {

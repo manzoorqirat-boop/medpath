@@ -729,7 +729,7 @@ function PatientApp({user,onLogout}) {
                   h("div",{style:{fontFamily:"var(--serif)",fontSize:18}},
                     sel.mode==="params"&&selectedCount>0?"Rs."+cartPrice.toFixed(0)+" ("+selectedCount+" params)":"Rs."+t.price
                   ),
-                  hasParams&&h("button",{onClick:()=>setExpanded(isExp?null:t.id),className:"btn sm",style:{fontSize:11,padding:"3px 10px"}},isExp?"Hide":"Select Params")
+                  hasParams&&h("button",{onClick:e=>{e.stopPropagation();setExpanded(isExp?null:t.id);},className:"btn sm",style:{fontSize:11,padding:"3px 10px"}},isExp?"Hide":"Select Params")
                 )
               ),
               h("div",{onClick:()=>toggleCart(t),style:{width:36,height:36,borderRadius:"50%",background:inC?"var(--p)":"var(--surface2)",border:"2px solid "+(inC?"var(--p)":"var(--b1)"),display:"flex",alignItems:"center",justifyContent:"center",color:inC?"#fff":"var(--t3)",fontSize:18,fontWeight:700,cursor:"pointer",flexShrink:0}},inC?"v":"+")
@@ -737,12 +737,12 @@ function PatientApp({user,onLogout}) {
             isExp&&hasParams&&h("div",{style:{marginTop:12,paddingTop:12,borderTop:"1px solid var(--b2)"}},
               h("div",{style:{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8}},
                 h("div",{style:{fontSize:11,fontWeight:600,color:"var(--t3)",fontFamily:"var(--mono)",textTransform:"uppercase"}},"Choose Parameters"),
-                h("button",{onClick:()=>selectAll(t),className:"btn sm",style:{fontSize:11}},sel.mode==="full"&&!selectedCount?"Full Test":"Reset to Full")
+                h("button",{onClick:e=>{e.stopPropagation();selectAll(t);},className:"btn sm",style:{fontSize:11}},sel.mode==="full"&&!selectedCount?"Full Test":"Reset to Full")
               ),
               h("div",{style:{display:"grid",gridTemplateColumns:"1fr 1fr",gap:6}},
                 (t.parameters||[]).map(p=>{
                   const isSel=sel.selectedParamIds.includes(p.id);
-                  return h("div",{key:p.id,onClick:()=>toggleParam(t.id,p.id),
+                  return h("div",{key:p.id,onClick:e=>{e.stopPropagation();toggleParam(t.id,p.id);},
                     style:{padding:"8px 10px",borderRadius:"var(--r-md)",cursor:"pointer",
                       border:"1.5px solid "+(isSel?"var(--p)":"var(--b2)"),
                       background:isSel?"var(--p-light)":"var(--surface)"}},

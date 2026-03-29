@@ -79,46 +79,126 @@ router.get("/:id", async function(req, res, next) {
     sample.test_ids = testsResult.rows.map(function(t) { return t.id; });
     sample.tests = testsResult.rows;
 
+    // Fetch selected params per test
+    var selParams = await query(
+      "SELECT param_id::text, test_id::text FROM sample_test_params WHERE sample_id=$1",
+      [req.params.id]);
+    sample.selected_param_ids = selParams.rows.map(function(p){ return p.param_id; });
+    sample.selected_params_by_test = {};
+    selParams.rows.forEach(function(p){
+      if(!sample.selected_params_by_test[p.test_id]) sample.selected_params_by_test[p.test_id]=[];
+      sample.selected_params_by_test[p.test_id].push(p.param_id);
+    });
+
     res.json({ sample: sample });
   } catch(err) { next(err); }
 });
 
-/* POST /api/samples — create sample */
+/* POST /api/samples — create sample
+   Body: {
+     patient_id, priority, collection_type,
+     bookings: [
+       { test_id, mode: "full" | "params", selected_param_ids: [...] }
+     ]
+   }
+   Legacy: { patient_id, test_ids: [...] } still supported
+*/
 router.post("/", authorize("admin","patient"), async function(req, res, next) {
   try {
     var patient_id = req.body.patient_id;
-    var test_ids = req.body.test_ids;
     var priority = req.body.priority || "Normal";
     var collection_type = req.body.collection_type || "Walk-in";
-    if (!patient_id || !test_ids || !test_ids.length) {
-      return res.status(400).json({ error: "patient_id and test_ids required" });
+
+    // Support legacy test_ids format
+    var bookings = req.body.bookings;
+    if (!bookings && req.body.test_ids && req.body.test_ids.length) {
+      bookings = req.body.test_ids.map(function(id) {
+        return { test_id: id, mode: "full", selected_param_ids: [] };
+      });
     }
-    var tests = await query(
-      "SELECT * FROM test_catalogue WHERE id=ANY($1::uuid[]) AND is_active=true", [test_ids]);
-    var subtotal = tests.rows.reduce(function(s,t){ return s + Number(t.price); }, 0);
+    if (!patient_id || !bookings || !bookings.length) {
+      return res.status(400).json({ error: "patient_id and bookings required" });
+    }
+
+    // Calculate subtotal
+    var subtotal = 0;
+    var testRows = [];
+    for (var b of bookings) {
+      var tr = await query(
+        "SELECT * FROM test_catalogue WHERE id=$1 AND is_active=true", [b.test_id]);
+      if (!tr.rows[0]) continue;
+      var test = tr.rows[0];
+      testRows.push({ test: test, booking: b });
+
+      if (b.mode === "params" && b.selected_param_ids && b.selected_param_ids.length) {
+        // Sum selected parameter prices
+        var pr = await query(
+          "SELECT COALESCE(SUM(price),0) total FROM test_parameters WHERE id=ANY($1::uuid[])",
+          [b.selected_param_ids]);
+        var paramTotal = Number(pr.rows[0].total);
+        // If all param prices are 0, fall back to test price
+        subtotal += paramTotal > 0 ? paramTotal : Number(test.price);
+      } else {
+        subtotal += Number(test.price);
+      }
+    }
+
+    // Create invoice
     var invSeq = await query("SELECT nextval('seq_invoice_no') AS val");
     var invNo = "INV-" + new Date().getFullYear() + "-" + String(invSeq.rows[0].val).padStart(5,"0");
     var invoice = await query(
       "INSERT INTO invoices(invoice_no,patient_id,subtotal,total,created_by) VALUES($1,$2,$3,$3,$4) RETURNING *",
       [invNo, patient_id, subtotal, req.user.id]
     );
-    for (var t of tests.rows) {
+
+    // Create invoice items
+    for (var row of testRows) {
+      var itemPrice = Number(row.test.price);
+      if (row.booking.mode === "params" && row.booking.selected_param_ids && row.booking.selected_param_ids.length) {
+        var pr2 = await query(
+          "SELECT COALESCE(SUM(price),0) total FROM test_parameters WHERE id=ANY($1::uuid[])",
+          [row.booking.selected_param_ids]);
+        var pp = Number(pr2.rows[0].total);
+        if (pp > 0) itemPrice = pp;
+      }
+      var label = row.test.name;
+      if (row.booking.mode === "params" && row.booking.selected_param_ids && row.booking.selected_param_ids.length) {
+        var pnames = await query(
+          "SELECT param_name FROM test_parameters WHERE id=ANY($1::uuid[]) ORDER BY display_order",
+          [row.booking.selected_param_ids]);
+        label = row.test.name + " (" + pnames.rows.map(function(p){return p.param_name;}).join(", ") + ")";
+      }
       await query(
         "INSERT INTO invoice_items(invoice_id,test_id,test_name,unit_price,net_price) VALUES($1,$2,$3,$4,$4)",
-        [invoice.rows[0].id, t.id, t.name, t.price]);
+        [invoice.rows[0].id, row.test.id, label, itemPrice]);
     }
+
+    // Create sample
     var smpSeq = await query("SELECT nextval('seq_sample_no') AS val");
     var smpNo = "SMP-" + new Date().getFullYear() + "-" + String(smpSeq.rows[0].val).padStart(5,"0");
     var sample = await query(
       "INSERT INTO samples(sample_no,invoice_id,patient_id,collection_type,priority) VALUES($1,$2,$3,$4,$5) RETURNING *",
       [smpNo, invoice.rows[0].id, patient_id, collection_type, priority]
     );
-    for (var t2 of tests.rows) {
-      await query("INSERT INTO sample_tests(sample_id,test_id) VALUES($1,$2)", [sample.rows[0].id, t2.id]);
+
+    // Link tests and selected parameters
+    for (var row2 of testRows) {
+      await query("INSERT INTO sample_tests(sample_id,test_id) VALUES($1,$2)",
+        [sample.rows[0].id, row2.test.id]);
+      // Store selected params
+      if (row2.booking.selected_param_ids && row2.booking.selected_param_ids.length) {
+        for (var pid of row2.booking.selected_param_ids) {
+          await query(
+            "INSERT INTO sample_test_params(sample_id,test_id,param_id) VALUES($1,$2,$3) ON CONFLICT DO NOTHING",
+            [sample.rows[0].id, row2.test.id, pid]);
+        }
+      }
     }
+
     await query(
       "INSERT INTO sample_status_log(sample_id,to_status,changed_by) VALUES($1,'Pending',$2)",
       [sample.rows[0].id, req.user.id]);
+
     res.status(201).json({ sample: sample.rows[0], invoice: invoice.rows[0] });
   } catch(err) { next(err); }
 });

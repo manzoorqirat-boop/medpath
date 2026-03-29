@@ -395,11 +395,20 @@ function Login({role,onLogin}) {
   }
   async function verifyOtp() {
     setLoading(true);setErr("");
-    const data=await api("POST","/api/auth/otp/verify",{phone:"+91"+phone,otp,name:name||undefined,dob:dob||undefined,gender:gender||undefined,blood_group:bloodGroup||undefined,email:regEmail||undefined});
+    const fullPhone="+91"+phone;
+    const data=await api("POST","/api/auth/otp/verify",{phone:fullPhone,otp,name:name||undefined,dob:dob||undefined,gender:gender||undefined,blood_group:bloodGroup||undefined,email:regEmail||undefined});
     setLoading(false);
-    if(data.token){TOKEN=data.token;sessionStorage.setItem("mp_token",data.token);sessionStorage.setItem("mp_user",JSON.stringify({...data.user,patientId:data.user.patientId}));sessionStorage.setItem("mp_role","Patient");onLogin({...data.user,patientId:data.user.patientId});}
+    if(!data){setErr("No response from server. Check connection.");return;}
+    if(data.error==="Network error"){setErr("Cannot reach server. Try again.");return;}
+    if(data.token){
+      TOKEN=data.token;
+      sessionStorage.setItem("mp_token",data.token);
+      sessionStorage.setItem("mp_user",JSON.stringify({...data.user,patientId:data.user.patientId}));
+      sessionStorage.setItem("mp_role","Patient");
+      onLogin({...data.user,patientId:data.user.patientId});
+    }
     else if(data.error==="Name required for new registration"){setStep(3);setErr("");}
-    else setErr(data.error||"Invalid OTP. Please try again.");
+    else setErr(data.error||"Verification failed. Please try again.");
   }
   async function staffLogin() {
     if(!staffEmail||!pw){setErr("Please enter your username and password.");return;}

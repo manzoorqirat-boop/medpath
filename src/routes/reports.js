@@ -150,6 +150,7 @@ router.get("/:reportId/full", async (req, res, next) => {
     const { rows: [report] } = await query(`
       SELECT r.*,tc.name test_name,tc.code,tc.category,
              tu.name tech_name,pu.name pathologist_name,
+             ps.designation pathologist_designation, ps.qualification pathologist_qualification,
              u.name patient_name,u.phone patient_phone,u.email patient_email,
              p.patient_no,p.date_of_birth,p.gender,p.blood_group,
              s.sample_no,s.collected_at,s.collection_type
@@ -160,6 +161,7 @@ router.get("/:reportId/full", async (req, res, next) => {
       JOIN users u ON u.id=p.user_id
       LEFT JOIN users tu ON tu.id=r.technician_id
       LEFT JOIN users pu ON pu.id=r.pathologist_id
+      LEFT JOIN staff ps ON ps.user_id=r.pathologist_id
       WHERE r.id=$1`,[req.params.reportId]);
     if (!report) return res.status(404).json({ error:"Report not found" });
     const { rows: results } = await query(
@@ -262,6 +264,7 @@ router.get("/:reportId/pdf", async (req, res, next) => {
     const { rows: [rpt] } = await query(`
       SELECT r.*,tc.name test_name,tc.code,
              tu.name tech_name,pu.name pathologist_name,
+             ps.designation pathologist_designation,ps.qualification pathologist_qualification,
              u.name patient_name,u.phone patient_phone,
              p.patient_no,p.date_of_birth,p.gender,p.blood_group,
              s.sample_no,s.collected_at
@@ -272,6 +275,7 @@ router.get("/:reportId/pdf", async (req, res, next) => {
       JOIN users u ON u.id=p.user_id
       LEFT JOIN users tu ON tu.id=r.technician_id
       LEFT JOIN users pu ON pu.id=r.pathologist_id
+      LEFT JOIN staff ps ON ps.user_id=r.pathologist_id
       WHERE r.id=$1`,[req.params.reportId]);
     if (!rpt) return res.status(404).json({ error:"Report not found" });
 
@@ -363,9 +367,14 @@ router.get("/:reportId/pdf", async (req, res, next) => {
     y += 16;
     doc.moveTo(330,y).lineTo(550,y).lineWidth(0.8).stroke("#000");
     doc.fill("#000").font("Helvetica-Bold").fontSize(9.5).text(rpt.pathologist_name||"—",330,y+6,{width:220});
+    doc.fill("#444").font("Helvetica").fontSize(8.5)
+       .text(rpt.pathologist_designation||"Pathologist",330,y+20,{width:220});
+    if(rpt.pathologist_qualification){
+      doc.fill("#666").font("Helvetica").fontSize(8)
+         .text(rpt.pathologist_qualification,330,y+32,{width:220});
+    }
     doc.fill("#666").font("Helvetica").fontSize(8)
-       .text("Verified Pathologist",330,y+20)
-       .text(new Date(rpt.signed_at||rpt.created_at).toLocaleDateString("en-IN"),330,y+32);
+       .text(new Date(rpt.signed_at||rpt.created_at).toLocaleDateString("en-IN")+" "+new Date(rpt.signed_at||rpt.created_at).toLocaleTimeString("en-IN",{hour:"2-digit",minute:"2-digit"}),330,y+44,{width:220});
 
     // Footer
     const fy = doc.page.height-42;

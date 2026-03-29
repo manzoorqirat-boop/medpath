@@ -648,43 +648,119 @@ function PatientApp({user,onLogout}) {
 
   function Tests() {
     const [search,setSearch]=useState("");
+    const [expanded,setExpanded]=useState(null);
+    const [paramSelections,setParamSelections]=useState({});
+
+    const getSelection=testId=>paramSelections[testId]||{mode:"full",selectedParamIds:[]};
     const inCart=id=>cart.find(c=>c.id===id);
-    const toggle=t=>setCart(prev=>inCart(t.id)?prev.filter(c=>c.id!==t.id):[...prev,t]);
+
+    function getCartPrice(t) {
+      const sel=getSelection(t.id);
+      if(sel.mode==="full"||!sel.selectedParamIds.length) return Number(t.price);
+      const params=(t.parameters||[]).filter(p=>sel.selectedParamIds.includes(p.id));
+      const paramTotal=params.reduce((s,p)=>s+Number(p.price||0),0);
+      return paramTotal>0?paramTotal:Number(t.price);
+    }
+    function toggleCart(t) {
+      if(inCart(t.id)){setCart(prev=>prev.filter(c=>c.id!==t.id));}
+      else{
+        const sel=getSelection(t.id);
+        const price=getCartPrice(t);
+        setCart(prev=>[...prev,{...t,price,_booking:{test_id:t.id,mode:sel.mode,selected_param_ids:sel.selectedParamIds}}]);
+      }
+    }
+    function toggleParam(testId,paramId){
+      setParamSelections(prev=>{
+        const cur=prev[testId]||{mode:"params",selectedParamIds:[]};
+        const ids=cur.selectedParamIds.includes(paramId)?cur.selectedParamIds.filter(i=>i!==paramId):[...cur.selectedParamIds,paramId];
+        return {...prev,[testId]:{mode:ids.length?"params":"full",selectedParamIds:ids}};
+      });
+      setCart(prev=>prev.filter(c=>c.id!==testId));
+    }
+    function selectAll(t){
+      setParamSelections(prev=>({...prev,[t.id]:{mode:"full",selectedParamIds:[]}}));
+      setCart(prev=>prev.filter(c=>c.id!==t.id));
+    }
+
+    const cartTotal=cart.reduce((s,t)=>s+Number(t.price),0);
     const filtered=tests.filter(t=>t.name.toLowerCase().includes(search.toLowerCase())||t.category.toLowerCase().includes(search.toLowerCase()));
+
+    async function bookTests() {
+      if(!cart.length)return;
+      if(!user.patientId){alert("Patient ID not found. Please contact reception.");return;}
+      const bookings=cart.map(t=>t._booking||{test_id:t.id,mode:"full",selected_param_ids:[]});
+      const data=await api("POST","/api/samples",{patient_id:user.patientId,bookings,priority:"Normal",collection_type:"Walk-in"});
+      if(data.sample){setSamples(prev=>[data.sample,...prev]);setCart([]);alert("Tests booked! Sample: "+data.sample.sample_no);}
+      else alert("Error: "+(data.error||"Booking failed"));
+    }
+
     return h("div",{className:"fade-in"},
       h("div",{className:"page-header"},
         h("div",{className:"page-title"},"Book Tests"),
-        h("div",{className:"page-sub"},"select tests to add to cart")
+        h("div",{className:"page-sub"},"select full test or individual parameters")
       ),
       cart.length>0&&h("div",{className:"cart-bar"},
         h("div",null,
-          h("div",{style:{fontSize:11,opacity:.7,fontFamily:"var(--mono)",letterSpacing:".04em"}}),cart.length+" TEST(S) SELECTED",
-          h("div",{style:{fontFamily:"var(--serif)",fontSize:20}},"₹"+total)
+          h("div",{style:{fontSize:11,opacity:.7,fontFamily:"var(--mono)",letterSpacing:".04em"}},cart.length+" TEST(S) IN CART"),
+          h("div",{style:{fontFamily:"var(--serif)",fontSize:20}},"Rs."+cartTotal.toFixed(0))
         ),
-        h("button",{onClick:bookTests,className:"btn",style:{background:"#fff",color:"var(--p)",fontWeight:600,padding:"8px 18px"}},"Book Now →")
+        h("button",{onClick:bookTests,className:"btn",style:{background:"#fff",color:"var(--p)",fontWeight:600,padding:"8px 18px",flexShrink:0}},"Book Now ->")
       ),
       h("div",{className:"search-wrap"},
         h("span",{className:"search-icon"},"🔍"),
-        h("input",{value:search,onChange:e=>setSearch(e.target.value),placeholder:"Search tests by name or category..."})
+        h("input",{value:search,onChange:e=>setSearch(e.target.value),placeholder:"Search tests..."})
       ),
       tests.length===0&&h(Spinner),
-      h("div",{className:"test-grid"},
+      h("div",{style:{display:"flex",flexDirection:"column",gap:10}},
         filtered.map(t=>{
-          const sel=inCart(t.id);
-          return h("div",{key:t.id,className:"test-card"+(sel?" selected":""),onClick:()=>toggle(t)},
-            h("div",{className:"test-cat"},t.category),
-            h("div",{className:"test-name"},t.name),
-            t.fasting_required&&h("div",{style:{fontSize:10,color:"var(--warn)",marginBottom:6,fontFamily:"var(--mono)"}},"⚠ FASTING"),
-            h("div",{style:{display:"flex",justifyContent:"space-between",alignItems:"center",marginTop:6}},
-              h("div",{className:"test-price"},"₹"+t.price),
-              h("div",{style:{width:22,height:22,borderRadius:"50%",background:sel?"var(--p)":"var(--surface2)",border:"1.5px solid "+(sel?"var(--p)":"var(--b1)"),display:"flex",alignItems:"center",justifyContent:"center",color:sel?"#fff":"var(--t3)",fontSize:13,fontWeight:700}},sel?"✓":"+")
+          const sel=getSelection(t.id);
+          const inC=inCart(t.id);
+          const hasParams=(t.parameters||[]).length>0;
+          const isExp=expanded===t.id;
+          const cartPrice=getCartPrice(t);
+          const selectedCount=sel.selectedParamIds.length;
+          return h("div",{key:t.id,className:"card",style:{padding:"14px 16px",border:inC?"2px solid var(--p)":"1px solid var(--b2)"}},
+            h("div",{style:{display:"flex",justifyContent:"space-between",alignItems:"center",flexWrap:"wrap",gap:8}},
+              h("div",{style:{flex:1}},
+                h("div",{style:{fontSize:9.5,fontWeight:600,color:"var(--p-mid)",textTransform:"uppercase",letterSpacing:".08em",fontFamily:"var(--mono)",marginBottom:2}},t.category),
+                h("div",{style:{fontWeight:600,fontSize:14,color:"var(--t1)",marginBottom:2}},t.name),
+                t.fasting_required&&h("div",{style:{fontSize:10,color:"var(--warn)",fontFamily:"var(--mono)"}},"Fasting Required"),
+                h("div",{style:{display:"flex",gap:10,alignItems:"center",marginTop:4,flexWrap:"wrap"}},
+                  h("div",{style:{fontFamily:"var(--serif)",fontSize:18}},
+                    sel.mode==="params"&&selectedCount>0?"Rs."+cartPrice.toFixed(0)+" ("+selectedCount+" params)":"Rs."+t.price
+                  ),
+                  hasParams&&h("button",{onClick:()=>setExpanded(isExp?null:t.id),className:"btn sm",style:{fontSize:11,padding:"3px 10px"}},isExp?"Hide":"Select Params")
+                )
+              ),
+              h("div",{onClick:()=>toggleCart(t),style:{width:36,height:36,borderRadius:"50%",background:inC?"var(--p)":"var(--surface2)",border:"2px solid "+(inC?"var(--p)":"var(--b1)"),display:"flex",alignItems:"center",justifyContent:"center",color:inC?"#fff":"var(--t3)",fontSize:18,fontWeight:700,cursor:"pointer",flexShrink:0}},inC?"v":"+")
+            ),
+            isExp&&hasParams&&h("div",{style:{marginTop:12,paddingTop:12,borderTop:"1px solid var(--b2)"}},
+              h("div",{style:{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8}},
+                h("div",{style:{fontSize:11,fontWeight:600,color:"var(--t3)",fontFamily:"var(--mono)",textTransform:"uppercase"}},"Choose Parameters"),
+                h("button",{onClick:()=>selectAll(t),className:"btn sm",style:{fontSize:11}},sel.mode==="full"&&!selectedCount?"Full Test":"Reset to Full")
+              ),
+              h("div",{style:{display:"grid",gridTemplateColumns:"1fr 1fr",gap:6}},
+                (t.parameters||[]).map(p=>{
+                  const isSel=sel.selectedParamIds.includes(p.id);
+                  return h("div",{key:p.id,onClick:()=>toggleParam(t.id,p.id),
+                    style:{padding:"8px 10px",borderRadius:"var(--r-md)",cursor:"pointer",
+                      border:"1.5px solid "+(isSel?"var(--p)":"var(--b2)"),
+                      background:isSel?"var(--p-light)":"var(--surface)"}},
+                    h("div",{style:{fontSize:12,fontWeight:500,color:isSel?"var(--p)":"var(--t1)"}},p.param_name),
+                    p.unit&&h("div",{style:{fontSize:10,color:"var(--t3)",fontFamily:"var(--mono)"}},p.unit),
+                    p.price>0&&h("div",{style:{fontSize:11,color:"var(--ok)"}},"+Rs."+p.price)
+                  );
+                })
+              ),
+              selectedCount>0&&h("div",{style:{marginTop:8,padding:"6px 10px",background:"var(--p-light)",borderRadius:"var(--r-sm)",fontSize:11,color:"var(--p)",fontFamily:"var(--mono)"}},
+                selectedCount+" selected - Rs."+cartPrice.toFixed(0)
+              )
             )
           );
         })
       )
     );
   }
-
   function Reports() {
     const [myReports,setMyReports]=useState([]);
     const [viewId,setViewId]=useState(null);
@@ -957,7 +1033,7 @@ function AdminApp({user,onLogout}) {
     const [params,setParams]=useState([]);
     const [editingParam,setEditingParam]=useState(null);
     const [paramMsg,setParamMsg]=useState("");
-    const emptyPF={param_name:"",unit:"",range_male_min:"",range_male_max:"",range_female_min:"",range_female_max:"",range_text:"",display_order:""};
+    const emptyPF={param_name:"",unit:"",price:"",range_male_min:"",range_male_max:"",range_female_min:"",range_female_max:"",range_text:"",display_order:""};
     const [pf,setPf]=useState(emptyPF);
 
     useEffect(()=>{api("GET","/api/tests").then(d=>{if(d.tests)setTests(d.tests);setLoading(false);});},[]);
@@ -984,7 +1060,7 @@ function AdminApp({user,onLogout}) {
     async function addParam(){
       if(!pf.param_name){setParamMsg("Parameter name is required.");return;}
       const d=await api("POST","/api/tests/"+paramTest.id+"/parameters",{
-        param_name:pf.param_name,unit:pf.unit||null,
+        param_name:pf.param_name,unit:pf.unit||null,price:Number(pf.price)||0,
         range_male_min:pf.range_male_min||null,range_male_max:pf.range_male_max||null,
         range_female_min:pf.range_female_min||null,range_female_max:pf.range_female_max||null,
         range_text:pf.range_text||null,display_order:Number(pf.display_order)||params.length
@@ -994,7 +1070,7 @@ function AdminApp({user,onLogout}) {
     }
     async function saveParam(id){
       const d=await api("PUT","/api/tests/parameters/"+id,{
-        param_name:pf.param_name,unit:pf.unit||null,
+        param_name:pf.param_name,unit:pf.unit||null,price:Number(pf.price)||0,
         range_male_min:pf.range_male_min||null,range_male_max:pf.range_male_max||null,
         range_female_min:pf.range_female_min||null,range_female_max:pf.range_female_max||null,
         range_text:pf.range_text||null,display_order:Number(pf.display_order)||0
@@ -1007,7 +1083,7 @@ function AdminApp({user,onLogout}) {
       await api("DELETE","/api/tests/parameters/"+id);
       setParams(prev=>prev.filter(p=>p.id!==id));setParamMsg("Deleted.");
     }
-    function startEdit(p){setEditingParam(p.id);setPf({param_name:p.param_name||"",unit:p.unit||"",range_male_min:p.range_male_min||"",range_male_max:p.range_male_max||"",range_female_min:p.range_female_min||"",range_female_max:p.range_female_max||"",range_text:p.range_text||"",display_order:p.display_order||""});}
+    function startEdit(p){setEditingParam(p.id);setPf({param_name:p.param_name||"",unit:p.unit||"",price:p.price||"",range_male_min:p.range_male_min||"",range_male_max:p.range_male_max||"",range_female_min:p.range_female_min||"",range_female_max:p.range_female_max||"",range_text:p.range_text||"",display_order:p.display_order||""});}
 
     if(paramTest) return h("div",{className:"fade-in"},
       h("div",{style:{display:"flex",alignItems:"center",gap:12,marginBottom:18}},
@@ -1023,6 +1099,7 @@ function AdminApp({user,onLogout}) {
         h("div",{className:"form-grid"},
           h("div",{className:"form-group"},h("label",null,"Parameter Name *"),h("input",{value:pf.param_name,onChange:e=>setPf({...pf,param_name:e.target.value}),placeholder:"e.g. Serum Creatinine"})),
           h("div",{className:"form-group"},h("label",null,"Unit"),h("input",{value:pf.unit,onChange:e=>setPf({...pf,unit:e.target.value}),placeholder:"e.g. mg/dL"})),
+          h("div",{className:"form-group"},h("label",null,"Price (Rs.) — 0 = use test price"),h("input",{type:"number",value:pf.price||"",onChange:e=>setPf({...pf,price:e.target.value}),placeholder:"0"})),
           h("div",{className:"form-group"},h("label",null,"Male Min"),h("input",{type:"number",value:pf.range_male_min,onChange:e=>setPf({...pf,range_male_min:e.target.value}),placeholder:"0.7"})),
           h("div",{className:"form-group"},h("label",null,"Male Max"),h("input",{type:"number",value:pf.range_male_max,onChange:e=>setPf({...pf,range_male_max:e.target.value}),placeholder:"1.2"})),
           h("div",{className:"form-group"},h("label",null,"Female Min"),h("input",{type:"number",value:pf.range_female_min,onChange:e=>setPf({...pf,range_female_min:e.target.value}),placeholder:"0.5"})),
@@ -1046,12 +1123,13 @@ function AdminApp({user,onLogout}) {
       params.length>0&&h("div",{className:"card",style:{padding:0,overflow:"visible"}},
         h("div",{className:"table-wrap"},
           h("table",{className:"glass-table"},
-            h("thead",null,h("tr",null,["#","Parameter","Unit","Male Range","Female Range","Display Text","Action"].map(c=>h("th",{key:c},c)))),
+            h("thead",null,h("tr",null,["#","Parameter","Unit","Price","Male Range","Female Range","Display Text","Action"].map(c=>h("th",{key:c},c)))),
             h("tbody",null,
               params.map((p,i)=>h("tr",{key:p.id},
                 h("td",{style:{fontFamily:"var(--mono)",fontSize:11,color:"var(--t3)"}},p.display_order||i+1),
                 h("td",{style:{fontWeight:600}},p.param_name),
                 h("td",{style:{fontFamily:"var(--mono)",fontSize:11}},p.unit||"—"),
+                h("td",{style:{fontFamily:"var(--mono)",fontSize:12,color:"var(--ok)"}},p.price>0?"Rs."+p.price:"—"),
                 h("td",{style:{fontFamily:"var(--mono)",fontSize:11}},p.range_male_min!=null&&p.range_male_max!=null?p.range_male_min+"-"+p.range_male_max:"—"),
                 h("td",{style:{fontFamily:"var(--mono)",fontSize:11}},p.range_female_min!=null&&p.range_female_max!=null?p.range_female_min+"-"+p.range_female_max:"—"),
                 h("td",{style:{fontSize:12,color:"var(--t2)"}},p.range_text||"—"),
@@ -1320,24 +1398,37 @@ function TechApp({user,onLogout}) {
     async function loadSample(s) {
       setSelected(s);setParams([]);setInputs({});setTechNotes("");setSavedMsg("Loading parameters...");
       await updateStatus(s.id,"Processing");
+      // Step 1: get sample with test_ids
       const sd=await api("GET","/api/samples/"+s.id);
       const testIds=(sd.sample?.test_ids)||[];
-      const idsToLoad=testIds.length?testIds:((sd.sample?.tests)||[]).map(t=>t.id);
-      if(!idsToLoad.length){setSavedMsg("No tests linked to this sample. Please contact admin.");return;}
+      if(!testIds.length){
+        // fallback: try tests array
+        const fallbackTests=(sd.sample?.tests)||[];
+        if(!fallbackTests.length){setSavedMsg("No tests linked to this sample. Please contact admin.");return;}
+      }
+      // Step 2: for each test, load parameters directly from /api/tests/:id
       const allTests=[];
+      const idsToLoad=testIds.length?testIds:((sd.sample?.tests)||[]).map(t=>t.id);
       for(const tid of idsToLoad){
         const td=await api("GET","/api/tests/"+tid);
         if(td.test){
+          // Also fetch parameters separately to ensure fresh data
           const pd=await api("GET","/api/tests/"+tid+"/parameters");
           const parameters=pd.parameters||td.test.parameters||[];
           allTests.push({...td.test,parameters});
         }
       }
       const withParams=allTests.filter(t=>t.parameters&&t.parameters.length>0);
-      if(!withParams.length){setSavedMsg("No parameters found. Go to Admin > Tests > Params and add parameters first.");return;}
-      setParams(withParams);setSavedMsg("");
+      if(!withParams.length){
+        setSavedMsg("No parameters found for these tests. Go to Admin > Tests > Params and add parameters first.");
+        return;
+      }
+      setParams(withParams);
+      setSavedMsg("");
       const ni={};
-      withParams.forEach(t=>t.parameters.forEach(p=>{ni[p.id]={value:"",flag:"Normal",unit:p.unit||"",ref:p.range_text||"",param_name:p.param_name};}));
+      withParams.forEach(t=>t.parameters.forEach(p=>{
+        ni[p.id]={value:"",flag:"Normal",unit:p.unit||"",ref:p.range_text||"",param_name:p.param_name};
+      }));
       setInputs(ni);
     }
     function autoFlag(p,val){

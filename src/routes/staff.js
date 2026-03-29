@@ -53,10 +53,10 @@ router.post("/", authorize("admin"), async (req, res, next) => {
     const pwdExpires = expiryDays > 0 ? new Date(Date.now() + expiryDays * 86400000) : null;
 
     const { rows:[user] } = await query(`
-      INSERT INTO users(name,email,phone,password_hash,temp_password_hash,temp_password_expires,
+      INSERT INTO users(name,email,phone,username,password_hash,temp_password_hash,temp_password_expires,
         must_change_password,role,is_active,created_by,password_expires_at,account_expires_at)
-      VALUES($1,$2,$3,$4,$4,$5,true,$6,true,$7,$8,$9) RETURNING *`,
-      [name, email.trim().toLowerCase(), phone||null, tempHash, tempExpires, role, req.user.id, pwdExpires, account_expires_at||null]);
+      VALUES($1,$2,$3,$4,$5,$5,$6,true,$7,true,$8,$9,$10) RETURNING *`,
+      [name, email?email.trim().toLowerCase():null, phone||null, username||null, tempHash, tempExpires, role, req.user.id, pwdExpires, account_expires_at||null]);
 
     const { rows:[{val}] } = await query("SELECT nextval('seq_staff_no') AS val");
     const staffNo = "STF-"+String(val).padStart(4,"0");

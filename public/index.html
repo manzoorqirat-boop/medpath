@@ -589,17 +589,8 @@ function PatientApp({user,onLogout}) {
   async function bookTests() {
     if(!cart.length)return;
     if(!user.patientId){alert("Patient ID not found. Please contact reception.");return;}
-    const bookings=cart.map(t=>t._booking||{test_id:t.id,mode:"full",selected_param_ids:[]});
-    const data=await api("POST","/api/samples",{patient_id:user.patientId,bookings,priority:"Normal",collection_type:"Walk-in"});
-    if(data.sample){
-      setSamples(prev=>[data.sample,...prev]);
-      setCart([]);
-      setParamSelections({});
-      setExpanded(null);
-      // Refresh billing
-      api("GET","/api/billing").then(d=>{if(d.invoices)setBills(d.invoices);});
-      alert("Tests booked! Sample: "+data.sample.sample_no);
-    }
+    const data=await api("POST","/api/samples",{patient_id:user.patientId,test_ids:cart.map(t=>t.id),collection_type:"Walk-in",priority:"Normal"});
+    if(data.sample){setSamples(prev=>[data.sample,...prev]);setCart([]);alert("Tests booked! Sample: "+data.sample.sample_no);}
     else alert("Error: "+(data.error||"Booking failed"));
   }
   async function payOnline(inv) {
@@ -808,14 +799,73 @@ function PatientApp({user,onLogout}) {
   }
 
   function Billing() {
+    const [viewInvoice,setViewInvoice]=useState(null);
+    const [invoiceItems,setInvoiceItems]=useState([]);
+    const paid=bills.filter(b=>b.paid).reduce((s,b)=>s+Number(b.total),0);
+    const due=bills.filter(b=>!b.paid).reduce((s,b)=>s+Number(b.total),0);
+
+    useEffect(()=>{
+      if(!viewInvoice)return;
+      api("GET","/api/billing/"+viewInvoice.id).then(d=>{if(d.items)setInvoiceItems(d.items);});
+    },[viewInvoice]);
+
+    if(viewInvoice) return h("div",{className:"fade-in"},
+      h("div",{style:{display:"flex",alignItems:"center",gap:10,marginBottom:18,flexWrap:"wrap"}},
+        h("button",{onClick:()=>{setViewInvoice(null);setInvoiceItems([]);},className:"btn sm"},"Back"),
+        h("button",{onClick:()=>window.print(),className:"btn sm"},"Print"),
+        h("div",{style:{flex:1}}),
+        !viewInvoice.paid&&h("button",{onClick:()=>payOnline(viewInvoice),className:"btn sm",style:{background:"#5B4CF0",color:"#fff",border:"none"}},"Pay Online")
+      ),
+      h("div",{className:"card"},
+        h("div",{style:{background:"linear-gradient(135deg,var(--p),var(--p-mid))",borderRadius:"var(--r-lg)",padding:"18px 20px",color:"#fff",marginBottom:16}},
+          h("div",{style:{display:"flex",justifyContent:"space-between",alignItems:"flex-start",flexWrap:"wrap",gap:8}},
+            h("div",null,
+              h("div",{style:{fontSize:18,fontWeight:700}},"MedPath Laboratory"),
+              h("div",{style:{fontSize:9,opacity:.7,fontFamily:"var(--mono)",marginTop:3}},"NABL ACCREDITED · ISO 15189")
+            ),
+            h("div",{style:{textAlign:"right"}},
+              h("div",{style:{fontFamily:"var(--mono)",fontSize:9,opacity:.7}},"INVOICE"),
+              h("div",{style:{fontFamily:"var(--mono)",fontSize:16,fontWeight:700}},viewInvoice.invoice_no),
+              h("div",{style:{fontSize:10,opacity:.7,marginTop:3}},new Date(viewInvoice.created_at).toLocaleDateString("en-IN"))
+            )
+          )
+        ),
+        h("div",{style:{display:"grid",gridTemplateColumns:"1fr 1fr",gap:"6px 20px",marginBottom:16}},
+          h("div",null,h("div",{style:{fontSize:9,color:"var(--t3)",fontFamily:"var(--mono)",textTransform:"uppercase",marginBottom:2}},"Patient"),h("div",{style:{fontWeight:600}},viewInvoice.patient_name||user.name)),
+          h("div",null,h("div",{style:{fontSize:9,color:"var(--t3)",fontFamily:"var(--mono)",textTransform:"uppercase",marginBottom:2}},"Invoice No"),h("div",{style:{fontWeight:600,color:"var(--p)"}},viewInvoice.invoice_no)),
+          h("div",null,h("div",{style:{fontSize:9,color:"var(--t3)",fontFamily:"var(--mono)",textTransform:"uppercase",marginBottom:2}},"Date"),h("div",{style:{fontWeight:600}},new Date(viewInvoice.created_at).toLocaleDateString("en-IN"))),
+          h("div",null,h("div",{style:{fontSize:9,color:"var(--t3)",fontFamily:"var(--mono)",textTransform:"uppercase",marginBottom:2}},"Status"),h("div",{style:{marginTop:2}},h(Badge,{label:viewInvoice.paid?"PAID":"DUE",type:viewInvoice.paid?"ok":"danger"})))
+        ),
+        h("div",{className:"table-wrap"},
+          h("table",{className:"glass-table"},
+            h("thead",null,h("tr",null,["Test / Service","Amount"].map(c=>h("th",{key:c},c)))),
+            h("tbody",null,
+              invoiceItems.length===0
+              ?h("tr",null,h("td",{colSpan:2,style:{textAlign:"center",color:"var(--t3)",padding:20}},"Loading items..."))
+              :invoiceItems.map((item,i)=>h("tr",{key:i},
+                h("td",{style:{fontWeight:500}},item.test_name),
+                h("td",{style:{fontFamily:"var(--serif)",fontSize:15,fontWeight:600}},"Rs."+item.net_price)
+              ))
+            )
+          )
+        ),
+        h("div",{style:{borderTop:"2px solid var(--b2)",paddingTop:14,marginTop:8,display:"flex",justifyContent:"space-between",alignItems:"center",flexWrap:"wrap",gap:10}},
+          h("div",{style:{fontSize:22,fontFamily:"var(--serif)",fontWeight:700,color:"var(--p)"}},"Total: Rs."+viewInvoice.total),
+          !viewInvoice.paid&&h("button",{onClick:()=>payOnline(viewInvoice),className:"btn primary",style:{width:"auto",padding:"10px 24px"}},"Pay Online")
+        ),
+        viewInvoice.paid&&h("div",{style:{marginTop:12,padding:"10px 14px",background:"var(--p-light)",borderRadius:"var(--r-md)",fontSize:12,color:"var(--p)",fontFamily:"var(--mono)"}},"PAID via "+(viewInvoice.payment_mode||"Online")),
+        h("div",{style:{marginTop:16,fontSize:11,color:"var(--t3)",textAlign:"center",fontFamily:"var(--mono)"}},"Thank you for choosing MedPath Laboratory")
+      )
+    );
+
     return h("div",{className:"fade-in"},
       h("div",{className:"page-header"},
         h("div",{className:"page-title"},"Billing & Payments"),
-        h("div",{className:"page-sub"},"invoices and payment status")
+        h("div",{className:"page-sub"},"tap invoice number to view details")
       ),
       h("div",{className:"stat-grid",style:{gridTemplateColumns:"repeat(3,1fr)"}},
-        [{label:"Paid",val:"₹"+paid,cls:"ok",c:""},
-         {label:"Outstanding",val:"₹"+due,cls:"danger",c:"red"},
+        [{label:"Paid",val:"Rs."+paid.toFixed(0),cls:"ok",c:""},
+         {label:"Outstanding",val:"Rs."+due.toFixed(0),cls:"danger",c:"red"},
          {label:"Invoices",val:bills.length,cls:"",c:""},
         ].map(s=>h("div",{key:s.label,className:"stat-card "+(s.c||"")},
           h("div",{className:"stat-label"},s.label),
@@ -823,23 +873,27 @@ function PatientApp({user,onLogout}) {
         ))
       ),
       bills.length===0&&h("div",{className:"card",style:{textAlign:"center",padding:30}},h("p",{style:{color:"var(--t3)"}},"No invoices yet.")),
-      h("div",{className:"card",style:{padding:0,overflow:"visible"}},
-        h("table",{className:"glass-table"},
-          h("thead",null,h("tr",null,["Invoice","Tests","Date","Amount","Status","Action"].map(c=>h("th",{key:c},c)))),
-          h("tbody",null,
-            bills.map(b=>h("tr",{key:b.id},
-              h("td",null,h("span",{onClick:()=>setViewInvoice(b),style:{fontFamily:"var(--mono)",fontWeight:700,color:"var(--p)",fontSize:12,cursor:"pointer",textDecoration:"underline"}},b.invoice_no)),
-              h("td",{style:{fontSize:11,color:"var(--t3)",fontFamily:"var(--mono)"}},new Date(b.created_at).toLocaleDateString("en-IN")),
-              h("td",{style:{fontFamily:"var(--serif)",fontWeight:600}},"₹"+b.total),
-              h("td",null,h(Badge,{label:b.paid?"Paid":"Due",type:b.paid?"ok":"danger"})),
-              h("td",null,!b.paid&&h("button",{onClick:()=>payOnline(b),className:"btn sm",style:{background:"#5B4CF0",color:"#fff",border:"none"}},"Pay Online"))
-            ))
+      bills.length>0&&h("div",{className:"card",style:{padding:0,overflow:"visible"}},
+        h("div",{className:"table-wrap"},
+          h("table",{className:"glass-table"},
+            h("thead",null,h("tr",null,["Invoice","Date","Amount","Status","Actions"].map(c=>h("th",{key:c},c)))),
+            h("tbody",null,
+              bills.map(b=>h("tr",{key:b.id},
+                h("td",null,h("span",{onClick:()=>setViewInvoice(b),style:{fontFamily:"var(--mono)",fontWeight:700,color:"var(--p)",fontSize:12,cursor:"pointer",textDecoration:"underline"}},b.invoice_no)),
+                h("td",{style:{fontSize:11,color:"var(--t3)",fontFamily:"var(--mono)"}},new Date(b.created_at).toLocaleDateString("en-IN")),
+                h("td",{style:{fontFamily:"var(--serif)",fontWeight:600}},"Rs."+b.total),
+                h("td",null,h(Badge,{label:b.paid?"Paid":"Due",type:b.paid?"ok":"danger"})),
+                h("td",null,h("div",{style:{display:"flex",gap:6}},
+                  h("button",{onClick:()=>setViewInvoice(b),className:"btn sm"},"View"),
+                  !b.paid&&h("button",{onClick:()=>payOnline(b),className:"btn sm",style:{background:"#5B4CF0",color:"#fff",border:"none"}},"Pay Online")
+                ))
+              ))
+            )
           )
         )
       )
     );
   }
-
   function Profile() {
     return h("div",{className:"fade-in"},
       h("div",{className:"page-header"},

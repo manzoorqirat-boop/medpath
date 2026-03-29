@@ -732,7 +732,7 @@ function PatientApp({user,onLogout}) {
                   hasParams&&h("button",{onClick:e=>{e.stopPropagation();setExpanded(isExp?null:t.id);},className:"btn sm",style:{fontSize:11,padding:"3px 10px"}},isExp?"Hide":"Select Params")
                 )
               ),
-              h("div",{onClick:()=>toggleCart(t),style:{width:36,height:36,borderRadius:"50%",background:inC?"var(--p)":"var(--surface2)",border:"2px solid "+(inC?"var(--p)":"var(--b1)"),display:"flex",alignItems:"center",justifyContent:"center",color:inC?"#fff":"var(--t3)",fontSize:18,fontWeight:700,cursor:"pointer",flexShrink:0}},inC?"v":"+")
+              h("div",{onClick:e=>{e.stopPropagation();toggleCart(t);},style:{width:36,height:36,borderRadius:"50%",background:inC?"var(--p)":"var(--surface2)",border:"2px solid "+(inC?"var(--p)":"var(--b1)"),display:"flex",alignItems:"center",justifyContent:"center",color:inC?"#fff":"var(--t3)",fontSize:18,fontWeight:700,cursor:"pointer",flexShrink:0}},inC?"v":"+")
             ),
             isExp&&hasParams&&h("div",{style:{marginTop:12,paddingTop:12,borderTop:"1px solid var(--b2)"}},
               h("div",{style:{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8}},
@@ -1608,7 +1608,7 @@ function DoctorApp({user,onLogout}) {
           ),
           h("div",{style:{display:"flex",gap:8}},
             h(Badge,{label:s.status,type:statusType(s.status)}),
-            h("button",{onClick:()=>signSample(s.id),className:"btn sm",style:{background:"var(--ok)",color:"#fff",border:"none"}},"Sign & Dispatch ✓")
+            h("button",{onClick:()=>signReport(s.id),className:"btn sm",style:{background:"var(--ok)",color:"#fff",border:"none"}},"Sign & Dispatch ✓")
           )
         ))
       )
@@ -1628,7 +1628,7 @@ function DoctorApp({user,onLogout}) {
               h("td",{style:{fontFamily:"var(--mono)",fontWeight:600,color:"var(--p)",fontSize:12}},s.sample_no),
               h("td",{style:{fontWeight:500}},s.patient_name||"—"),
               h("td",null,h(Badge,{label:s.status,type:statusType(s.status)})),
-              h("td",null,h("button",{onClick:()=>signSample(s.id),className:"btn sm",style:{background:"var(--ok)",color:"#fff",border:"none",whiteSpace:"nowrap"}},"Sign & Dispatch"))
+              h("td",null,h("button",{onClick:()=>signReport(s.id),className:"btn sm",style:{background:"var(--ok)",color:"#fff",border:"none",whiteSpace:"nowrap"}},"Sign & Dispatch"))
             )))
           )
         )

@@ -1823,10 +1823,20 @@ function DoctorApp({user,onLogout}) {
 }
 
 function App() {
-  const [role,setRole]=useState(null);
-  const [user,setUser]=useState(null);
-  function handleLogin(u,back){if(back){setRole(null);setUser(null);TOKEN=null;}else setUser(u);}
-  function handleLogout(){setUser(null);setRole(null);TOKEN=null;}
+  const [role,setRole]=useState(()=>{return sessionStorage.getItem("mp_role")||null;});
+  const [user,setUser]=useState(()=>{
+    try{const u=sessionStorage.getItem("mp_user");return u?JSON.parse(u):null;}catch(e){return null;}
+  });
+  function handleLogin(u,back){
+    if(back){setRole(null);setUser(null);TOKEN=null;sessionStorage.clear();}
+    else{
+      const r=u.role==="patient"?"Patient":u.role.charAt(0).toUpperCase()+u.role.slice(1);
+      setUser(u);setRole(r);
+      sessionStorage.setItem("mp_user",JSON.stringify(u));
+      sessionStorage.setItem("mp_role",r);
+    }
+  }
+  function handleLogout(){setUser(null);setRole(null);TOKEN=null;sessionStorage.clear();}
   if(!role) return h(RoleSelect,{onSelect:setRole});
   if(!user) return h(Login,{role,onLogin:handleLogin});
   if(role==="Patient") return h(PatientApp,{user,onLogout:handleLogout});

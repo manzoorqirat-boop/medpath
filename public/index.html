@@ -274,7 +274,7 @@ label{font-size:11px;color:var(--t2);font-weight:500;letter-spacing:.03em;displa
 <script>
 const {useState,useEffect,createElement:h} = React;
 const API = "https://medpath-production.up.railway.app";
-let TOKEN = null;
+let TOKEN = sessionStorage.getItem("mp_token")||null;
 
 async function api(method, path, body) {
   const headers = {"Content-Type":"application/json"};
@@ -1803,10 +1803,18 @@ function DoctorApp({user,onLogout}) {
 }
 
 function App() {
-  const [role,setRole]=useState(null);
-  const [user,setUser]=useState(null);
-  function handleLogin(u,back){if(back){setRole(null);setUser(null);TOKEN=null;}else setUser(u);}
-  function handleLogout(){setUser(null);setRole(null);TOKEN=null;}
+  const [role,setRole]=useState(()=>{
+    const u=sessionStorage.getItem("mp_user");
+    if(!u)return null;
+    const parsed=JSON.parse(u);
+    return parsed.role==="patient"?"Patient":parsed.role.charAt(0).toUpperCase()+parsed.role.slice(1);
+  });
+  const [user,setUser]=useState(()=>{
+    const u=sessionStorage.getItem("mp_user");
+    return u?JSON.parse(u):null;
+  });
+  function handleLogin(u,back){if(back){setRole(null);setUser(null);TOKEN=null;sessionStorage.clear();}else{setUser(u);sessionStorage.setItem("mp_user",JSON.stringify(u));sessionStorage.setItem("mp_role",u.role==="patient"?"Patient":u.role.charAt(0).toUpperCase()+u.role.slice(1));}}
+function handleLogout(){setUser(null);setRole(null);TOKEN=null;sessionStorage.clear();}
   if(!role) return h(RoleSelect,{onSelect:setRole});
   if(!user) return h(Login,{role,onLogin:handleLogin});
   if(role==="Patient") return h(PatientApp,{user,onLogout:handleLogout});

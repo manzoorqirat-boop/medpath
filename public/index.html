@@ -1463,52 +1463,60 @@ function TechApp({user,onLogout}) {
 
     async function loadSample(s) {
       setSelected(s);setParams([]);setInputs({});setTechNotes("");setSavedMsg("Loading...");
-      await updateStatus(s.id,"Processing");
 
-      // Get full catalogue with parameters (confirmed working from /api/tests)
-      const td=await api("GET","/api/tests");
-      const allCatalog=(td.tests)||[];
+      try {
+        updateStatus(s.id,"Processing").catch(function(){});
 
-      // Get sample to find linked test IDs
-      const sd=await api("GET","/api/samples/"+s.id);
-      const sampleData=sd.sample||{};
+        const td=await api("GET","/api/tests");
+        const allCatalog=(td.tests)||[];
+        if(!allCatalog.length){setSavedMsg("Error: Could not load test catalogue.");return;}
 
-      // Get test IDs from sample - try both test_ids array and tests array
-      const rawIds=[
-        ...((sampleData.test_ids)||[]),
-        ...((sampleData.tests)||[]).map(t=>String(t.id))
-      ];
-      const testIds=[...new Set(rawIds.map(id=>String(id).trim()))];
+        const sd=await api("GET","/api/samples/"+s.id);
+        if(!sd.sample){setSavedMsg("Error: Could not load sample details.");return;}
+        const sampleData=sd.sample;
 
-      // If no test_ids linked, show all catalogue tests as fallback for debugging
-      if(!testIds.length){
-        setSavedMsg("No tests linked to this sample. Please book a new test after today's update.");
-        return;
+        const rawIds=[
+          ...((sampleData.test_ids)||[]),
+          ...((sampleData.tests)||[]).map(function(t){return String(t.id);})
+        ];
+        const testIds=[...new Set(rawIds.map(function(id){return String(id).trim();}))];
+
+        if(!testIds.length){
+          setSavedMsg("No tests linked to this sample. Please book a new sample.");
+          return;
+        }
+
+        const matchedTests=allCatalog.filter(function(t){
+          return testIds.indexOf(String(t.id).trim())!==-1;
+        });
+
+        if(!matchedTests.length){
+          setSavedMsg("Sample has test IDs but no match in catalogue. IDs: "+testIds.join(", "));
+          return;
+        }
+
+        const withParams=matchedTests.filter(function(t){
+          return Array.isArray(t.parameters)&&t.parameters.length>0;
+        });
+
+        if(!withParams.length){
+          setSavedMsg("Tests found: "+matchedTests.map(function(t){return t.name;}).join(", ")+". No parameters configured. Go to Admin > Tests > Params.");
+          return;
+        }
+
+        setParams(withParams);
+        setSavedMsg("");
+        const ni={};
+        withParams.forEach(function(t){
+          t.parameters.forEach(function(p){
+            ni[p.id]={value:"",flag:"Normal",unit:p.unit||"",ref:p.range_text||"",param_name:p.param_name};
+          });
+        });
+        setInputs(ni);
+
+      } catch(err) {
+        setSavedMsg("Error loading sample: "+String(err));
       }
-
-      // Match catalogue tests to sample's test_ids (string comparison)
-      const matchedTests=allCatalog.filter(t=>testIds.includes(String(t.id).trim()));
-
-      if(!matchedTests.length){
-        setSavedMsg("Debug: Sample has test_ids ["+testIds.join(",")+"] but none matched catalogue. Contact admin.");
-        return;
-      }
-
-      // Filter to tests with parameters
-      const withParams=matchedTests.filter(t=>Array.isArray(t.parameters)&&t.parameters.length>0);
-
-      if(!withParams.length){
-        const names=matchedTests.map(t=>t.name).join(", ");
-        setSavedMsg("Tests linked: "+names+". But no parameters found in Admin > Tests > Params.");
-        return;
-      }
-
-      setParams(withParams);setSavedMsg("");
-      const ni={};
-      withParams.forEach(t=>t.parameters.forEach(p=>{
-        ni[p.id]={value:"",flag:"Normal",unit:p.unit||"",ref:p.range_text||"",param_name:p.param_name};
-      }));
-      setInputs(ni);
     }
     function autoFlag(p,val){
       if(!val||isNaN(val))return "Normal";

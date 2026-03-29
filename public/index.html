@@ -1456,51 +1456,41 @@ function TechApp({user,onLogout}) {
     const queue=samples.filter(s=>s.status==="Collected"||s.status==="Processing");
 
     async function loadSample(s) {
-      setSelected(s);setParams([]);setInputs({});setTechNotes("");setSavedMsg("Loading parameters...");
+      setSelected(s);setParams([]);setInputs({});setTechNotes("");setSavedMsg("Loading...");
       await updateStatus(s.id,"Processing");
-      // Step 1: get sample - it returns tests[] with parameters embedded
+
+      // Get sample to find which tests are booked
       const sd=await api("GET","/api/samples/"+s.id);
-      const sampleTests=(sd.sample?.tests)||[];
-      const testIds=(sd.sample?.test_ids)||[];
-
-      if(!sampleTests.length&&!testIds.length){
-        setSavedMsg("No tests linked to this sample. Please contact admin.");return;
+      const sampleTestIds=new Set(
+        [...((sd.sample?.test_ids)||[]),
+         ...((sd.sample?.tests)||[]).map(t=>t.id)]
+      );
+      if(!sampleTestIds.size){
+        setSavedMsg("No tests linked to this sample.");return;
       }
 
-      // Step 2: use embedded tests first (fastest), else fetch by ID
-      const allTests=[];
-      if(sampleTests.length>0){
-        // Use tests from sample - they already have parameters embedded
-        for(const t of sampleTests){
-          if(t.parameters&&t.parameters.length>0){
-            allTests.push(t);
-          } else {
-            // Fetch parameters using test CODE (avoids UUID routing bug)
-            const pd=await api("GET","/api/tests/"+t.code+"/parameters");
-            if(pd.parameters&&pd.parameters.length>0){
-              allTests.push({...t,parameters:pd.parameters});
-            }
-          }
-        }
-      } else {
-        // Fallback: load each test by ID then get params by code
-        for(const tid of testIds){
-          const td=await api("GET","/api/tests/"+tid);
-          if(td.test){
-            const pd=await api("GET","/api/tests/"+td.test.code+"/parameters");
-            const parameters=pd.parameters||td.test.parameters||[];
-            if(parameters.length>0) allTests.push({...td.test,parameters});
-          }
-        }
+      // Fetch ALL tests with parameters in one call (most reliable approach)
+      const td=await api("GET","/api/tests");
+      const allCatalogTests=(td.tests)||[];
+
+      // Filter to only the tests booked in this sample
+      const matchedTests=allCatalogTests.filter(t=>sampleTestIds.has(t.id));
+
+      if(!matchedTests.length){
+        setSavedMsg("Tests not found in catalogue. Contact admin.");return;
       }
 
-      if(!allTests.length){
-        setSavedMsg("No parameters found. Go to Admin > Tests > Params and add parameters first.");
+      // Only keep tests that have parameters configured
+      const withParams=matchedTests.filter(t=>t.parameters&&t.parameters.length>0);
+
+      if(!withParams.length){
+        setSavedMsg("Tests found but no parameters configured. Go to Admin > Tests > Params.");
         return;
       }
-      setParams(allTests);setSavedMsg("");
+
+      setParams(withParams);setSavedMsg("");
       const ni={};
-      allTests.forEach(t=>t.parameters.forEach(p=>{
+      withParams.forEach(t=>t.parameters.forEach(p=>{
         ni[p.id]={value:"",flag:"Normal",unit:p.unit||"",ref:p.range_text||"",param_name:p.param_name};
       }));
       setInputs(ni);

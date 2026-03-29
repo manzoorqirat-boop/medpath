@@ -67,7 +67,41 @@ router.get("/all", authorize("admin","doctor"), async (req, res, next) => {
 router.post("/sample/:sampleId/test/:testId", authorize("technician","admin"), async (req, res, next) => {
   try {
     const { results=[], tech_notes } = req.body;
-    if (!results.length) return res.status(400).json({ error: "No results provided" });
+    
+    // ✅ FIXED: Verify sample exists
+    const { rows: [sample] } = await query(
+      "SELECT id FROM samples WHERE id=$1",
+      [req.params.sampleId]);
+    if (!sample) {
+      return res.status(404).json({ error: "Sample not found" });
+    }
+    
+    // ✅ FIXED: Verify sample_tests relationship exists
+    // This means the test was actually booked for this sample
+    const { rows: [st] } = await query(
+      "SELECT * FROM sample_tests WHERE sample_id=$1 AND test_id=$2",
+      [req.params.sampleId, req.params.testId]);
+    if (!st) {
+      return res.status(404).json({ 
+        error: "Test not found in this sample. Sample may not be linked to this test. Please ensure the test was booked during sample creation." 
+      });
+    }
+    
+    // ✅ FIXED: Verify test has parameters configured
+    const { rows: params } = await query(
+      "SELECT * FROM test_parameters WHERE test_id=$1 ORDER BY display_order",
+      [req.params.testId]);
+    if (!params.length) {
+      return res.status(400).json({
+        error: "Test has no parameters configured. Add parameters in the Tests catalogue first."
+      });
+    }
+    
+    // ✅ FIXED: Verify at least one result is provided
+    if (!results.length) {
+      return res.status(400).json({ error: "No results provided" });
+    }
+    
     let report;
     await transaction(async (client) => {
       const { rows: [{ val }] } = await client.query("SELECT nextval('seq_report_no') AS val");
@@ -168,14 +202,12 @@ router.post("/:reportId/send-email", authorize("admin","doctor"), async (req, re
       <div style="margin-bottom:6px;"><span style="color:#8A9590;width:130px;display:inline-block;">Test</span> <strong>${r.test_name}</strong></div>
       <div style="margin-bottom:6px;"><span style="color:#8A9590;width:130px;display:inline-block;">Patient ID</span> <strong>${r.patient_no}</strong></div>
       <div style="margin-bottom:6px;"><span style="color:#8A9590;width:130px;display:inline-block;">Verified By</span> <strong>${r.pathologist_name||"Lab Pathologist"}</strong></div>
-      <div><span style="color:#8A9590;width:130px;display:inline-block;">Report Date</span> <strong>${new Date(r.signed_at||Date.now()).toLocaleDateString("en-IN")}</strong></div>
     </div>
-    <div style="background:#E8F5F0;border:1px solid #b7e0cc;border-radius:8px;padding:14px 18px;font-size:13px;color:#0A5C47;margin-bottom:20px;">
-      ✅ Log in to the patient portal to view, download, or print your complete report.
-    </div>
-    <p style="font-size:11px;color:#8A9590;border-top:1px solid #e0e8e4;padding-top:14px;margin-top:0;">
-      MedPath Laboratory · NABL Accredited · ISO 15189 · support@medpath.in<br>
-      This is an automated message, please do not reply.
+    <p style="font-size:13px;color:#5A6560;margin-bottom:20px;">
+      <a href="${process.env.APP_URL || "https://medpath-production.up.railway.app"}/reports/${r.report_no}" 
+         style="background:#0A5C47;color:#fff;padding:10px 20px;text-decoration:none;border-radius:4px;display:inline-block;margin-top:10px;">
+        View My Report
+      </a>
     </p>
   </div>
 </div>`

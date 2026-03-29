@@ -375,7 +375,7 @@ function RoleSelect({onSelect}) {
 
 function Login({role,onLogin}) {
   const [pw,setPw]=useState("");
-  const [phone,setPhone]=useState("+91");
+  const [phone,setPhone]=useState("");
   const [otp,setOtp]=useState("123456");
   const [step,setStep]=useState(1);
   const [name,setName]=useState("");
@@ -430,14 +430,14 @@ function Login({role,onLogin}) {
           h("label",null,"Mobile Number"),
           h("div",{style:{display:"flex",gap:8,alignItems:"center"}},
           h("div",{style:{padding:"9px 13px",border:"1px solid var(--b1)",borderRadius:"var(--r-md)",background:"var(--surface2)",fontSize:13,fontWeight:600,color:"var(--t2)",flexShrink:0}},"+91"),
-          h("input",{value:phone,onChange:e=>setPhone(e.target.value.replace(/[^0-9]/g,"")),placeholder:"9876543210",maxLength:10,style:{flex:1}})
+          h("input",{value:phone,onChange:e=>setPhone(e.target.value.replace(/[^0-9]/g,"")),placeholder:"9876543210",maxLength:10,style:{flex:1},type:"tel"})
         )
         ),
         
         h("button",{onClick:sendOtp,disabled:loading,className:"btn primary"},loading?"Sending OTP...":"Send OTP →")
       ),
       role==="Patient"&&step===2&&h("div",null,
-        h("p",{style:{fontSize:13,color:"var(--t2)",marginBottom:14}},"OTP sent to +91"+phone),
+        h("p",{style:{fontSize:13,color:"var(--t2)",marginBottom:14}},"OTP sent to +91 "+phone),
         h("div",{className:"form-group"},
           h("label",null,"Enter OTP"),
           h("input",{value:otp,onChange:e=>setOtp(e.target.value),placeholder:"123456",style:{textAlign:"center",letterSpacing:8,fontSize:22,fontFamily:"var(--mono)"}})

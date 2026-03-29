@@ -299,7 +299,7 @@ label{font-size:11px;color:var(--t2);font-weight:500;letter-spacing:.03em;displa
 <div id="root" style="position:relative;z-index:1;"></div>
 <script>
 const {useState,useEffect,createElement:h} = React;
-const API = "https://medpath-production.up.railway.app";
+https://medpath-production.up.railway.app/api/auth/login
 let TOKEN = sessionStorage.getItem("mp_token")||null;
 
 async function api(method, path, body) {

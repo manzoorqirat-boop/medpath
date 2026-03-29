@@ -170,7 +170,7 @@ label{font-size:11px;color:var(--t2);font-weight:500;letter-spacing:.03em;displa
 .test-price{font-family:var(--serif);font-size:20px;color:var(--t1);}
 
 /* AUTH */
-.auth-wrap{min-height:100vh;display:flex;align-items:center;justify-content:center;padding:24px;position:relative;z-index:1;overflow:hidden;background:linear-gradient(135deg,#0077B6 0%,#00B4D8 50%,#90E0EF 100%);}
+.auth-wrap{min-height:100vh;display:flex;align-items:center;justify-content:center;padding:24px;position:relative;z-index:1;overflow:hidden;background:linear-gradient(135deg,#0A5C47 0%,#0F7A5E 40%,#0080a0 100%);}
 .auth-bg-logo{position:fixed;pointer-events:none;z-index:0;animation:floatLogo ease-in-out infinite;opacity:0.06;font-size:180px;user-select:none;}
 .auth-bg-logo:nth-child(1){top:5%;left:10%;animation-duration:12s;animation-delay:0s;font-size:160px;}
 .auth-bg-logo:nth-child(2){top:50%;right:8%;animation-duration:16s;animation-delay:-5s;font-size:200px;}
@@ -298,8 +298,8 @@ label{font-size:11px;color:var(--t2);font-weight:500;letter-spacing:.03em;displa
 <div class="orb orb-2"></div>
 <div id="root" style="position:relative;z-index:1;"></div>
 <script>
-const {useState,useEffect,createElement:h} = React;
-https://medpath-production.up.railway.app/api/auth/login
+const {useState,useEffect,useRef,createElement:h} = React;
+const API = "https://medpath-production.up.railway.app";
 let TOKEN = sessionStorage.getItem("mp_token")||null;
 
 async function api(method, path, body) {
@@ -382,9 +382,10 @@ function Login({role,onLogin}) {
   const [dob,setDob]=useState("");
   const [gender,setGender]=useState("");
   const [bloodGroup,setBloodGroup]=useState("");
-  const [staffEmail,setStaffEmail]=useState("");
+  const [email,setEmail]=useState("");
   const [loading,setLoading]=useState(false);
   const [err,setErr]=useState("");
+  const [staffEmail,setStaffEmail]=useState("");
 
   async function sendOtp() {
     if(!phone||phone.length<10){setErr("Please enter valid 10-digit mobile number.");return;}
@@ -394,14 +395,14 @@ function Login({role,onLogin}) {
   }
   async function verifyOtp() {
     setLoading(true);setErr("");
-    const data=await api("POST","/api/auth/otp/verify",{phone:"+91"+phone,otp,name:name||undefined,dob:dob||undefined,gender:gender||undefined,blood_group:bloodGroup||undefined,email:email||undefined});
+    const data=await api("POST","/api/auth/otp/verify",{phone:"+91"+phone,otp,name:name||undefined,dob:dob||undefined,gender:gender||undefined,blood_group:bloodGroup||undefined,email:regEmail||undefined});
     setLoading(false);
     if(data.token){TOKEN=data.token;sessionStorage.setItem("mp_token",data.token);sessionStorage.setItem("mp_user",JSON.stringify({...data.user,patientId:data.user.patientId}));sessionStorage.setItem("mp_role","Patient");onLogin({...data.user,patientId:data.user.patientId});}
     else if(data.error==="Name required for new registration"){setStep(3);setErr("");}
     else setErr(data.error||"Invalid OTP. Please try again.");
   }
   async function staffLogin() {
-    if(!email||!pw){setErr("Please enter your email and password.");return;}
+    if(!staffEmail||!pw){setErr("Please enter your username and password.");return;}
     setLoading(true);setErr("");
     const data=await api("POST","/api/auth/login",{email:staffEmail.trim(),password:pw});
     setLoading(false);
@@ -480,8 +481,8 @@ function Login({role,onLogin}) {
       ),
       role!=="Patient"&&h("div",null,
         h("div",{className:"form-group"},
-          h("label",null,"Username / Email"),
-          h("input",{type:"text",value:staffEmail,onChange:e=>setStaffEmail(e.target.value),placeholder:"Enter your username or email",autoComplete:"username"})
+          h("label",null,"Email Address"),
+          h("input",{type:"email",value:staffEmail,onChange:e=>setStaffEmail(e.target.value),placeholder:"Enter your email",autoComplete:"username"})
         ),
         h("div",{className:"form-group"},
           h("label",null,"Password"),
@@ -1731,8 +1732,15 @@ function AdminApp({user,onLogout}) {
 function TechApp({user,onLogout}) {
   const [active,setActive]=useState("dashboard");
   const [samples,setSamples]=useState([]);
-  const nav=[{id:"dashboard",icon:"🏠",label:"Dashboard"},{id:"results",icon:"📝",label:"Results"},{id:"all",icon:"📋",label:"All Samples"}];
   const [allSamples,setAllSamples]=useState([]);
+  const [selected,setSelected]=useState(null);
+  const [params,setParams]=useState([]);
+  const [inputs,setInputs]=useState({});
+  const [techNotes,setTechNotes]=useState("");
+  const [saving,setSaving]=useState(false);
+  const [savedMsg,setSavedMsg]=useState("");
+  const [viewId,setViewId]=useState(null);
+  const nav=[{id:"dashboard",icon:"🏠",label:"Dashboard"},{id:"results",icon:"📝",label:"Results"},{id:"all",icon:"📋",label:"All Samples"}];
 
   useEffect(()=>{
     api("GET","/api/samples?limit=50").then(d=>{
@@ -1783,18 +1791,11 @@ function TechApp({user,onLogout}) {
   }
 
   function Results() {
-    const [selected,setSelected]=useState(null);
-    const [params,setParams]=useState([]);
-    const [inputs,setInputs]=useState({});
-    const [techNotes,setTechNotes]=useState("");
-    const [saving,setSaving]=useState(false);
-    const [savedMsg,setSavedMsg]=useState("");
-    const [viewId,setViewId]=useState(null);
     const queue=samples.filter(s=>s.status==="Collected"||s.status==="Processing");
 
     async function loadSample(s) {
       setSelected(s);setParams([]);setInputs({});setTechNotes("");setSavedMsg("Loading...");
-      await updateStatus(s.id,"Processing");
+      updateStatus(s.id,"Processing").catch(function(){});
 
       // Get full catalogue with parameters (confirmed working from /api/tests)
       const td=await api("GET","/api/tests");
@@ -2166,8 +2167,8 @@ function SessionManager({onLogout}) {
   const TIMEOUT_MINS = 30;
   const WARN_MINS    = 5;
   const [countdown, setCountdown] = useState(null);
-  const timerRef = React.useRef(null);
-  const warnRef  = React.useRef(null);
+  const timerRef = useRef(null);
+  const warnRef  = useRef(null);
 
   function resetTimer() {
     clearTimeout(timerRef.current);

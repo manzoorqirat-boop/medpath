@@ -170,7 +170,7 @@ label{font-size:11px;color:var(--t2);font-weight:500;letter-spacing:.03em;displa
 .test-price{font-family:var(--serif);font-size:20px;color:var(--t1);}
 
 /* AUTH */
-.auth-wrap{min-height:100vh;display:flex;align-items:center;justify-content:center;padding:24px;position:relative;z-index:1;overflow:hidden;background:linear-gradient(135deg,#0A5C47 0%,#0F7A5E 40%,#0080a0 100%);}
+.auth-wrap{min-height:100vh;display:flex;align-items:center;justify-content:center;padding:24px;position:relative;z-index:1;overflow:hidden;background:linear-gradient(135deg,#0077B6 0%,#00B4D8 50%,#90E0EF 100%);}
 .auth-bg-logo{position:fixed;pointer-events:none;z-index:0;animation:floatLogo ease-in-out infinite;opacity:0.06;font-size:180px;user-select:none;}
 .auth-bg-logo:nth-child(1){top:5%;left:10%;animation-duration:12s;animation-delay:0s;font-size:160px;}
 .auth-bg-logo:nth-child(2){top:50%;right:8%;animation-duration:16s;animation-delay:-5s;font-size:200px;}
@@ -306,9 +306,16 @@ async function api(method, path, body) {
   const headers = {"Content-Type":"application/json"};
   if(TOKEN) headers["Authorization"] = "Bearer "+TOKEN;
   try {
-    const res = await fetch(API+path, {method, headers, body:body?JSON.stringify(body):undefined});
-    return res.json();
-  } catch(e) { return {error:"Network error"}; }
+    const controller = new AbortController();
+    const timeout = setTimeout(()=>controller.abort(), 15000);
+    const res = await fetch(API+path, {method, headers, body:body?JSON.stringify(body):undefined, signal:controller.signal});
+    clearTimeout(timeout);
+    const text = await res.text();
+    try { return JSON.parse(text); } catch(e) { return {error:"Server error: "+text.slice(0,100)}; }
+  } catch(e) {
+    if(e.name==="AbortError") return {error:"Request timed out. Please try again."};
+    return {error:"Network error: "+e.message};
+  }
 }
 
 function Badge({label,type="gray"}) {
@@ -625,7 +632,7 @@ function ReportViewer({reportId,onClose,showSendActions}) {
               h("td",{style:{fontWeight:700}},r.value),
               h("td",{style:{color:"var(--t3)"}},r.unit||"—"),
               h("td",{style:{fontFamily:"var(--mono)",fontSize:12,color:"var(--t2)"}},r.ref_range||"—"),
-              h("td",null,h("span",{className:fc(r.flag)},r.flag||"Normal"))
+              h("td",null,h("span",{className:fc(r.flag),style:{opacity:r.flag==="Pending"?.5:1}},r.flag||"Normal"))
             )))
           )
         ),
@@ -1395,6 +1402,18 @@ function AdminApp({user,onLogout}) {
     const [settings,setSettings]=useState({});
     const [savingSettings,setSavingSettings]=useState(false);
     const [auditFilter,setAuditFilter]=useState({category:"",from:"",to:""});
+    const [privileges,setPrivileges]=useState([
+      {module:"Patient Registration",admin:true,doctor:false,technician:false},
+      {module:"Book Tests",admin:true,doctor:false,technician:false},
+      {module:"Sample Tracking",admin:true,doctor:"View",technician:"Update"},
+      {module:"Enter Results",admin:false,doctor:"View",technician:true},
+      {module:"Sign Reports",admin:false,doctor:true,technician:false},
+      {module:"Billing",admin:true,doctor:false,technician:false},
+      {module:"Test Catalogue",admin:true,doctor:"View",technician:"View"},
+      {module:"User Management",admin:true,doctor:false,technician:false},
+      {module:"Audit Trail",admin:"View",doctor:false,technician:false},
+      {module:"System Settings",admin:false,doctor:false,technician:false},
+    ]);
 
     useEffect(()=>{loadStaff();},[]);
     useEffect(()=>{if(tab==="audit")loadAudit();if(tab==="settings")loadSettings();},[tab]);
@@ -1476,19 +1495,6 @@ function AdminApp({user,onLogout}) {
       return "info";
     }
 
-    // Privilege matrix data
-    const privileges = [
-      {module:"Patient Registration",superAdmin:true,admin:true,doctor:false,technician:false},
-      {module:"Book Tests",superAdmin:true,admin:true,doctor:false,technician:false},
-      {module:"Sample Tracking",superAdmin:true,admin:true,doctor:"View",technician:"Update"},
-      {module:"Enter Results",superAdmin:true,admin:false,doctor:"View",technician:true},
-      {module:"Sign Reports",superAdmin:true,admin:false,doctor:true,technician:false},
-      {module:"Billing",superAdmin:true,admin:true,doctor:false,technician:false},
-      {module:"Test Catalogue",superAdmin:true,admin:true,doctor:"View",technician:"View"},
-      {module:"User Management",superAdmin:true,admin:true,doctor:false,technician:false},
-      {module:"Audit Trail",superAdmin:true,admin:"View",doctor:false,technician:false},
-      {module:"System Settings",superAdmin:true,admin:false,doctor:false,technician:false},
-    ];
     function privCell(val){
       if(val===true)return h("span",{style:{color:"var(--ok)",fontWeight:700}},"✓ Full");
       if(val===false)return h("span",{style:{color:"var(--danger)",opacity:.5}},"✗");
@@ -1505,6 +1511,7 @@ function AdminApp({user,onLogout}) {
           h("div",{className:"form-group"},h("label",null,"Role *"),
             h("select",{value:sf.role,onChange:e=>setSf({...sf,role:e.target.value})},
               ["technician","doctor","admin"].map(r=>h("option",{key:r,value:r},r.charAt(0).toUpperCase()+r.slice(1)))
+              // super_admin managed separately - not creatable from UI
             )
           ),
           h("div",{className:"form-group"},h("label",null,"Designation *"),h("input",{value:sf.designation,onChange:e=>setSf({...sf,designation:e.target.value}),placeholder:"Senior Pathologist"})),
@@ -1617,23 +1624,46 @@ function AdminApp({user,onLogout}) {
       ),
 
       // ── PRIVILEGE MATRIX TAB ──
-      tab==="privilege"&&h("div",{className:"card",style:{padding:0,overflow:"visible"}},
-        h("div",{style:{padding:"16px 20px 8px",borderBottom:"1px solid var(--b2)"}},
-          h("div",{style:{fontSize:13,fontWeight:600,color:"var(--t1)"}},"Role-Based Access Control Matrix"),
-          h("div",{style:{fontSize:11,color:"var(--t3)",fontFamily:"var(--mono)",marginTop:2}},"defines what each role can do in the system")
-        ),
-        h("div",{className:"table-wrap"},
-          h("table",{className:"glass-table"},
-            h("thead",null,h("tr",null,
-              ["Module","Super Admin","Admin","Doctor","Technician"].map(c=>h("th",{key:c},c))
-            )),
-            h("tbody",null,privileges.map(p=>h("tr",{key:p.module},
-              h("td",{style:{fontWeight:500}},p.module),
-              h("td",null,privCell(p.superAdmin)),
-              h("td",null,privCell(p.admin)),
-              h("td",null,privCell(p.doctor)),
-              h("td",null,privCell(p.technician))
-            )))
+      tab==="privilege"&&h("div",null,
+        h("div",{className:"card",style:{marginBottom:12}},
+          h("div",{style:{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12}},
+            h("div",null,
+              h("div",{style:{fontSize:13,fontWeight:600,color:"var(--t1)"}},"Role-Based Access Control Matrix"),
+              h("div",{style:{fontSize:11,color:"var(--t3)",fontFamily:"var(--mono)",marginTop:2}},"configure what each role can access")
+            ),
+            h("button",{onClick:async()=>{
+              const d=await api("PATCH","/api/staff/settings",{settings:{"privileges":JSON.stringify(privileges)}});
+              if(d.message)setMsg("Privileges saved!");else setMsg("Error saving privileges");
+            },className:"btn primary",style:{width:"auto",padding:"8px 18px",fontSize:12}},"Save Changes")
+          ),
+          h("div",{className:"table-wrap"},
+            h("table",{className:"glass-table"},
+              h("thead",null,h("tr",null,
+                ["Module","Admin","Doctor","Technician"].map(c=>h("th",{key:c},c))
+              )),
+              h("tbody",null,privileges.map((p,pi)=>h("tr",{key:p.module},
+                h("td",{style:{fontWeight:500}},p.module),
+                ["admin","doctor","technician"].map(role=>
+                  h("td",{key:role},
+                    h("select",{
+                      value:typeof p[role]==="boolean"?(p[role]?"full":"none"):p[role]||"none",
+                      onChange:e=>{
+                        const v=e.target.value;
+                        const newPriv=[...privileges];
+                        newPriv[pi]={...newPriv[pi],[role]:v==="full"?true:v==="none"?false:v};
+                        setPrivileges(newPriv);
+                      },
+                      style:{fontSize:11,padding:"3px 6px",width:"100%"}
+                    },
+                      h("option",{value:"full"},"✓ Full"),
+                      h("option",{value:"View"},"View Only"),
+                      h("option",{value:"Update"},"Update"),
+                      h("option",{value:"none"},"✗ No Access")
+                    )
+                  )
+                )
+              )))
+            )
           )
         )
       ),
@@ -1859,15 +1889,23 @@ function TechApp({user,onLogout}) {
       return "Normal";
     }
     async function saveTest(test){
+      // Include ALL parameters - even empty ones (so partial results show)
       const results=test.parameters.map(p=>({
-        param_name:p.param_name,value:inputs[p.id]?.value||"",
-        unit:p.unit||"",flag:inputs[p.id]?.flag||"Normal",ref_range:p.range_text||""
-      })).filter(r=>r.value);
-      if(!results.length){setSavedMsg("Enter at least one value.");return;}
+        param_name:p.param_name,
+        value:inputs[p.id]?.value||"",
+        unit:p.unit||"",
+        flag:inputs[p.id]?.value?inputs[p.id]?.flag||"Normal":"Pending",
+        ref_range:p.range_text||""
+      }));
+      const filledCount=results.filter(r=>r.value).length;
+      if(!filledCount){setSavedMsg("Enter at least one value.");return;}
       setSaving(true);setSavedMsg("");
-      const d=await api("POST","/api/reports/sample/"+selected.id+"/test/"+test.id,{results,tech_notes:techNotes});
+      const d=await api("POST","/api/reports/sample/"+selected.id+"/test/"+test.id,{results,tech_notes:techNotes,is_partial:filledCount<results.length});
       setSaving(false);
-      if(d.report)setSavedMsg("Saved! Report: "+d.report.report_no);
+      if(d.report){
+        const partial=filledCount<results.length;
+        setSavedMsg((partial?"Partial results saved ("+filledCount+"/"+results.length+" params). ":"All results saved! ")+"Report: "+d.report.report_no);
+      }
       else setSavedMsg("Error: "+(d.error||"Unknown"));
     }
 

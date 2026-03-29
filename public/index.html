@@ -1459,32 +1459,19 @@ function TechApp({user,onLogout}) {
       setSelected(s);setParams([]);setInputs({});setTechNotes("");setSavedMsg("Loading...");
       await updateStatus(s.id,"Processing");
 
-      // Get sample to find which tests are booked
+      // Get sample — backend returns tests WITH parameters already linked
       const sd=await api("GET","/api/samples/"+s.id);
-      const sampleTestIds=new Set(
-        [...((sd.sample?.test_ids)||[]),
-         ...((sd.sample?.tests)||[]).map(t=>t.id)]
-      );
-      if(!sampleTestIds.size){
-        setSavedMsg("No tests linked to this sample.");return;
+      const testsWithParams=sd.sample?.tests||[];
+
+      if(!testsWithParams.length){
+        setSavedMsg("❌ No tests linked to this sample. Contact admin.");return;
       }
 
-      // Fetch ALL tests with parameters in one call (most reliable approach)
-      const td=await api("GET","/api/tests");
-      const allCatalogTests=(td.tests)||[];
-
-      // Filter to only the tests booked in this sample
-      const matchedTests=allCatalogTests.filter(t=>sampleTestIds.has(t.id));
-
-      if(!matchedTests.length){
-        setSavedMsg("Tests not found in catalogue. Contact admin.");return;
-      }
-
-      // Only keep tests that have parameters configured
-      const withParams=matchedTests.filter(t=>t.parameters&&t.parameters.length>0);
+      // Filter to tests that have parameters configured
+      const withParams=testsWithParams.filter(t=>t.parameters&&t.parameters.length>0);
 
       if(!withParams.length){
-        setSavedMsg("Tests found but no parameters configured. Go to Admin > Tests > Params.");
+        setSavedMsg("❌ Tests linked but no parameters configured. Go to Admin > Tests > Params.");
         return;
       }
 

@@ -505,7 +505,8 @@ function Login({role,onLogin}) {
           h("input",{type:"password",value:pw,onChange:e=>setPw(e.target.value),placeholder:"Enter your password",autoComplete:"current-password",onKeyDown:e=>{if(e.key==="Enter")staffLogin();}})
         ),
         
-        h("button",{onClick:staffLogin,disabled:loading,className:"btn primary"},loading?"Logging in...":"Login →")
+        h("button",{onClick:staffLogin,disabled:loading,className:"btn primary"},loading?"Logging in...":"Login →"),
+        h("div",{style:{fontSize:11,color:"var(--t3)",textAlign:"center",marginTop:10,fontFamily:"var(--mono)"}},"Default: admin / admin")
       ),
       h("button",{onClick:()=>onLogin(null,true),className:"btn",style:{width:"100%",marginTop:12}},"← Back to role selection")
     )
@@ -1531,7 +1532,8 @@ function AdminApp({user,onLogout}) {
         h("div",{className:"form-grid"},
           h("div",{className:"form-group"},h("label",null,"Full Name *"),h("input",{value:pf.name,onChange:e=>setPf({...pf,name:e.target.value}),placeholder:"Patient full name"})),
           h("div",{className:"form-group"},h("label",null,"Phone *"),h("input",{type:"tel",value:pf.phone,onChange:e=>setPf({...pf,phone:e.target.value}),placeholder:"+91 9XXXXXXXXX"})),
-          h("div",{className:"form-group"},h("label",null,"Email"),h("input",{type:"email",value:pf.email,onChange:e=>setPf({...pf,email:e.target.value}),placeholder:"Optional"})),
+          h("div",{className:"form-group"},h("label",null,"Username"),
+          h("input",{type:"text",value:staffEmail,onChange:e=>setStaffEmail(e.target.value),placeholder:"Enter your username (e.g. admin)",autoComplete:"username",autoCapitalize:"none"})
           h("div",{className:"form-group"},h("label",null,"Date of Birth"),h("input",{type:"date",value:pf.dob,onChange:e=>setPf({...pf,dob:e.target.value})})),
           h("div",{className:"form-group"},h("label",null,"Gender"),h("select",{value:pf.gender,onChange:e=>setPf({...pf,gender:e.target.value})},h("option",{value:""},"Select"),["Male","Female","Other"].map(g=>h("option",{key:g,value:g},g)))),
           h("div",{className:"form-group"},h("label",null,"Blood Group"),h("select",{value:pf.blood_group,onChange:e=>setPf({...pf,blood_group:e.target.value})},h("option",{value:""},"Select"),["A+","A-","B+","B-","AB+","AB-","O+","O-"].map(g=>h("option",{key:g,value:g},g))))

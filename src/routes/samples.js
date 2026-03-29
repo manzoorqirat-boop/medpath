@@ -181,7 +181,9 @@ router.post("/", authorize("admin","patient"), async function(req, res, next) {
       [smpNo, invoice.rows[0].id, patient_id, collection_type, priority]
     );
 
-    // ✅ LINK TESTS TO SAMPLE — THIS IS THE KEY FIX
+    // ✅ FIXED: LINK TESTS TO SAMPLE — THIS IS THE KEY FIX
+    // This ensures sample_tests records are created for ALL bookings
+    // so technicians can see and record results for each test
     for (var row2 of testRows) {
       await query("INSERT INTO sample_tests(sample_id,test_id) VALUES($1,$2)",
         [sample.rows[0].id, row2.test.id]);

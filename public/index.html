@@ -1600,7 +1600,7 @@ function TechApp({user,onLogout}) {
             h("div",{style:{fontWeight:500,fontSize:13}},p.param_name),
             h("div",{style:{fontSize:10,color:"var(--t3)",fontFamily:"var(--mono)"}},p.range_text||"")
           ),
-          h("input",{type:"number",value:inputs[p.id]?.value||"",onChange:e=>{const v=e.target.value;const flag=autoFlag(p,v);setInputs(prev=>({...prev,[p.id]:{...prev[p.id],value:v,flag}}));},placeholder:"0.00",style:{textAlign:"center",fontWeight:600}}),
+          h("input",{type:"text",inputMode:"decimal",value:inputs[p.id]?.value||"",onChange:e=>{const v=e.target.value;const flag=autoFlag(p,v);setInputs(prev=>({...prev,[p.id]:{...prev[p.id],value:v,flag}}));},placeholder:"0.00",style:{textAlign:"center",fontWeight:600}}),
           h("input",{value:p.unit||"",disabled:true,style:{textAlign:"center",fontSize:12,color:"var(--t3)",background:"var(--surface2)"}}),
           h("select",{value:inputs[p.id]?.flag||"Normal",onChange:e=>setInputs(prev=>({...prev,[p.id]:{...prev[p.id],flag:e.target.value}}))},
             ["Normal","High","Low","Critical","Borderline"].map(f=>h("option",{key:f,value:f},f))

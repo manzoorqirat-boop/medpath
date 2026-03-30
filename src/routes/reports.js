@@ -87,11 +87,6 @@ router.post("/sample/:sampleId/test/:testId", authorize("technician","admin"), a
       return res.status(404).json({ error: "Sample not found" });
     }
     
-    // Verify sample exists
-    const { rows: [sample] } = await query(
-      "SELECT id FROM samples WHERE id=$1", [req.params.sampleId]);
-    if (!sample) return res.status(404).json({ error: "Sample not found" });
-
     // Check at least one result has a value
     const filledResults = results.filter(r => r.value !== undefined && r.value !== null);
     if (!filledResults.length) {

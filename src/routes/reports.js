@@ -44,32 +44,21 @@ router.get("/sample/:sampleId", async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
-/* GET /api/reports/all — Admin/Doctor: all reports with results */
+/* GET /api/reports/all — Admin/Doctor: all reports */
 router.get("/all", authorize("admin","doctor"), async (req, res, next) => {
   try {
     const { rows } = await query(`
-      SELECT r.id,r.report_no,r.is_signed,r.signed_at,r.created_at,
-             r.tech_notes,r.pathologist_note,
-             tc.name test_name,tc.code,tc.category,
-             s.sample_no,s.id sample_id,
+      SELECT r.id,r.report_no,r.is_signed,r.signed_at,r.created_at,r.sent_email,r.sent_whatsapp,
+             tc.name test_name,s.sample_no,
              u.name patient_name,u.phone patient_phone,u.email patient_email,
-             p.patient_no,p.date_of_birth,p.gender,p.blood_group,
-             pu.name pathologist_name,
-             tu.name tech_name
+             p.patient_no,pu.name pathologist_name
       FROM reports r
       JOIN test_catalogue tc ON tc.id=r.test_id
       JOIN samples s ON s.id=r.sample_id
       JOIN patients p ON p.id=s.patient_id
       JOIN users u ON u.id=p.user_id
       LEFT JOIN users pu ON pu.id=r.pathologist_id
-      LEFT JOIN users tu ON tu.id=r.technician_id
       ORDER BY r.created_at DESC LIMIT 100`);
-    for (const rpt of rows) {
-      const { rows: results } = await query(
-        "SELECT * FROM report_results WHERE report_id=$1 ORDER BY created_at",
-        [rpt.id]);
-      rpt.results = results;
-    }
     res.json({ reports: rows });
   } catch (err) { next(err); }
 });
@@ -87,60 +76,66 @@ router.post("/sample/:sampleId/test/:testId", authorize("technician","admin"), a
       return res.status(404).json({ error: "Sample not found" });
     }
     
-    // Check at least one result has a value
-    const filledResults = results.filter(r => r.value && r.value.toString().trim() !== "");
-    if (!filledResults.length) {
-      return res.status(400).json({ error: "Enter at least one value" });
+    // ✅ FIXED: Verify sample_tests relationship exists
+    // This means the test was actually booked for this sample
+    const { rows: [st] } = await query(
+      "SELECT * FROM sample_tests WHERE sample_id=$1 AND test_id=$2",
+      [req.params.sampleId, req.params.testId]);
+    if (!st) {
+      return res.status(404).json({ 
+        error: "Test not found in this sample. Sample may not be linked to this test. Please ensure the test was booked during sample creation." 
+      });
+    }
+    
+    // ✅ FIXED: Verify test has parameters configured
+    const { rows: params } = await query(
+      "SELECT * FROM test_parameters WHERE test_id=$1 ORDER BY display_order",
+      [req.params.testId]);
+    if (!params.length) {
+      return res.status(400).json({
+        error: "Test has no parameters configured. Add parameters in the Tests catalogue first."
+      });
+    }
+    
+    // ✅ FIXED: Verify at least one result is provided
+    if (!results.length) {
+      return res.status(400).json({ error: "No results provided" });
     }
     
     let report;
     await transaction(async (client) => {
-      // Get or create report (ON CONFLICT keeps existing report_id)
-      const { rows: [existing] } = await client.query(
-        "SELECT id,report_no FROM reports WHERE sample_id=$1 AND test_id=$2",
+      const { rows: [{ val }] } = await client.query("SELECT nextval('seq_report_no') AS val");
+      const reportNo = "RPT-"+new Date().getFullYear()+"-"+String(val).padStart(5,"0");
+      // Check if report already exists
+      const { rows:[existing] } = await client.query(
+        "SELECT id FROM reports WHERE sample_id=$1 AND test_id=$2",
         [req.params.sampleId, req.params.testId]);
-      
       let rpt;
       if (existing) {
-        // Update existing report
-        const { rows: [updated] } = await client.query(
+        const { rows:[u] } = await client.query(
           "UPDATE reports SET tech_notes=$1,technician_id=$2,updated_at=NOW() WHERE id=$3 RETURNING *",
           [tech_notes||null, req.user.id, existing.id]);
-        rpt = updated;
+        rpt = u;
       } else {
-        // Create new report with sequence number
-        const { rows: [{ val }] } = await client.query("SELECT nextval('seq_report_no') AS val");
-        const reportNo = "RPT-"+new Date().getFullYear()+"-"+String(val).padStart(5,"0");
-        const { rows: [created] } = await client.query(
+        const { rows:[c] } = await client.query(
           "INSERT INTO reports(sample_id,test_id,technician_id,tech_notes,report_no) VALUES($1,$2,$3,$4,$5) RETURNING *",
           [req.params.sampleId, req.params.testId, req.user.id, tech_notes||null, reportNo]);
-        rpt = created;
+        rpt = c;
       }
-
-      // Clear old results and insert new ones (only filled)
-      await client.query("DELETE FROM report_results WHERE report_id=$1", [rpt.id]);
-      for (const r of filledResults) {
+      // Delete old results and insert new ones
+      await client.query("DELETE FROM report_results WHERE report_id=$1",[rpt.id]);
+      for (const r of results) {
         await client.query(
           "INSERT INTO report_results(report_id,param_name,value,unit,flag,ref_range) VALUES($1,$2,$3,$4,$5,$6)",
-          [rpt.id, r.param_name, r.value, r.unit||"", r.flag||"Normal", r.ref_range||""]);
+          [rpt.id, r.param_name, r.value||"", r.unit||"", r.flag||"Normal", r.ref_range||""]);
       }
-      // Also insert pending (empty) params so doctor sees full list
-      const emptyResults = results.filter(r => !r.value || r.value.toString().trim() === "");
-      for (const r of emptyResults) {
-        await client.query(
-          "INSERT INTO report_results(report_id,param_name,value,unit,flag,ref_range) VALUES($1,$2,$3,$4,$5,$6)",
-          [rpt.id, r.param_name, "", r.unit||"", "Pending", r.ref_range||""]);
-      }
-      await client.query(
-        "UPDATE samples SET status='Reported' WHERE id=$1",
-        [req.params.sampleId]);
+      await client.query("UPDATE samples SET status='Reported' WHERE id=$1",[req.params.sampleId]);
       report = rpt;
     });
-
-    // Fetch fresh results from DB to confirm save
+    // Fetch fresh saved results from DB
     const { rows: savedResults } = await query(
       "SELECT * FROM report_results WHERE report_id=$1 ORDER BY created_at", [report.id]);
-    res.json({ report: { ...report, results: savedResults } });
+    res.json({ report, results: savedResults });
   } catch (err) { next(err); }
 });
 
@@ -180,8 +175,7 @@ router.get("/:reportId/full", async (req, res, next) => {
       WHERE r.id=$1`,[req.params.reportId]);
     if (!report) return res.status(404).json({ error:"Report not found" });
     const { rows: results } = await query(
-      "SELECT * FROM report_results WHERE report_id=$1 AND value IS NOT NULL AND value<>'' ORDER BY created_at",
-      [req.params.reportId]);
+      "SELECT * FROM report_results WHERE report_id=$1 ORDER BY created_at",[req.params.reportId]);
     res.json({ report, results });
   } catch (err) { next(err); }
 });
@@ -270,25 +264,21 @@ router.get("/:reportId/whatsapp-link", authorize("admin","doctor","technician"),
   } catch (err) { next(err); }
 });
 
-/* GET /api/reports/:reportId/pdf — Stream PDF (public with token in query) */
+/* GET /api/reports/:reportId/pdf — Stream PDF (token via query for window.open) */
 router.get("/:reportId/pdf", async (req, res, next) => {
-  // Allow token from query string for window.open PDF downloads
+  // window.open can't send headers - accept token via query string
   if (!req.user && req.query.token) {
     try {
       const jwt = require("jsonwebtoken");
       const SECRET = process.env.JWT_SECRET || "change-me-in-production";
       req.user = jwt.verify(req.query.token, SECRET);
-    } catch(e) {
-      return res.status(401).json({ error: "Invalid token" });
-    }
+    } catch(e) { return res.status(401).send("Invalid token"); }
   }
-  if (!req.user) return res.status(401).json({ error: "No token provided" });
+  if (!req.user) return res.status(401).send("Unauthorized");
   try {
     let PDFDocument;
     try { PDFDocument = require("pdfkit"); }
-    catch (e) { 
-      return res.status(503).send("PDF generation unavailable. pdfkit not installed.");
-    }
+    catch (e) { return res.status(503).json({ error:"pdfkit not installed. Run: npm install pdfkit" }); }
 
     const { rows: [rpt] } = await query(`
       SELECT r.*,tc.name test_name,tc.code,
@@ -309,8 +299,7 @@ router.get("/:reportId/pdf", async (req, res, next) => {
     if (!rpt) return res.status(404).json({ error:"Report not found" });
 
     const { rows: results } = await query(
-      "SELECT * FROM report_results WHERE report_id=$1 AND value IS NOT NULL AND value<>'' ORDER BY created_at",
-      [req.params.reportId]);
+      "SELECT * FROM report_results WHERE report_id=$1 ORDER BY created_at",[req.params.reportId]);
 
     const doc = new PDFDocument({ margin:50, size:"A4" });
     res.setHeader("Content-Type","application/pdf");

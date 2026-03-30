@@ -121,16 +121,23 @@ function TechApp({user,onLogout}) {
       return "Normal";
     }
     async function saveTest(test){
-      const results=test.parameters.map(p=>({
-        param_name:p.param_name,value:inputs[p.id]?.value||"",
-        unit:p.unit||"",flag:inputs[p.id]?.flag||"Normal",ref_range:p.range_text||""
-      })).filter(r=>r.value);
-      if(!results.length){setSavedMsg("Enter at least one value.");return;}
+      const results=test.parameters.map(p=>{
+        const inp=document.querySelector('[data-pid="'+p.id+'"]');
+        const val=inp?inp.value.trim():"";
+        const mn=inp?inp.getAttribute("data-min"):"";
+        const mx=inp?inp.getAttribute("data-max"):"";
+        const flag=!val?"Pending":(mn&&parseFloat(val)<parseFloat(mn))?"Low":(mx&&parseFloat(val)>parseFloat(mx))?"High":"Normal";
+        return {param_name:p.param_name,value:val,unit:p.unit||"",flag,ref_range:p.range_text||""};
+      });
+      const filled=results.filter(r=>r.value).length;
+      if(!filled){setSavedMsg("Enter at least one value.");return;}
       setSaving(true);setSavedMsg("");
       const d=await api("POST","/api/reports/sample/"+selected.id+"/test/"+test.id,{results,tech_notes:techNotes});
       setSaving(false);
-      if(d.report)setSavedMsg("Saved! Report: "+d.report.report_no);
-      else setSavedMsg("Error: "+(d.error||"Unknown"));
+      if(d.report){
+        await updateStatus(selected.id,"Reported").catch(function(){});
+        setSavedMsg("✅ Saved! Report: "+d.report.report_no+" — Submitted for doctor review.");
+      } else setSavedMsg("Error: "+(d.error||"Unknown"));
     }
 
     if(viewId)return h(ReportViewer,{reportId:viewId,onClose:()=>setViewId(null),showSendActions:false});
@@ -202,25 +209,9 @@ function TechApp({user,onLogout}) {
             h("div",{style:{fontWeight:500,fontSize:13}},p.param_name),
             h("div",{style:{fontSize:10,color:"var(--t3)",fontFamily:"var(--mono)"}},p.range_text||"")
           ),
-          h("input",{
-                      type:"number",step:"any",
-                      value:inputs[p.id]?.value||"",
-                      onChange:e=>{
-                        const v=e.target.value;
-                        setInputs(prev=>({...prev,[p.id]:{...prev[p.id],value:v}}));
-                      },
-                      onBlur:e=>{
-                        const v=e.target.value;
-                        const flag=autoFlag(p,v);
-                        setInputs(prev=>({...prev,[p.id]:{...prev[p.id],flag}}));
-                      },
-                      placeholder:"",
-                      style:{textAlign:"center",fontWeight:600,width:"100%",fontSize:14}
-                    }),
+          h("input",{"data-pid":p.id,"data-min":p.range_male_min!=null?String(p.range_male_min):"","data-max":p.range_male_max!=null?String(p.range_male_max):"",type:"tel",inputMode:"decimal",defaultValue:"",placeholder:"—",style:{textAlign:"center",fontWeight:600,width:"100%",fontSize:15,border:"1px solid var(--b1)",borderRadius:"var(--r-md)",padding:"8px 4px"}}),
           h("input",{value:p.unit||"",disabled:true,style:{textAlign:"center",fontSize:12,color:"var(--t3)",background:"var(--surface2)"}}),
-          h("select",{value:inputs[p.id]?.flag||"Normal",onChange:e=>setInputs(prev=>({...prev,[p.id]:{...prev[p.id],flag:e.target.value}}))},
-            ["Normal","High","Low","Critical","Borderline"].map(f=>h("option",{key:f,value:f},f))
-          )
+          h("span",{style:{fontSize:11,color:"var(--t3)",fontFamily:"var(--mono)",textAlign:"center",display:"block"}},"auto")
         )),
         h("div",{style:{marginTop:14}},
           h("label",null,"Technician Notes"),
@@ -385,7 +376,7 @@ function DoctorApp({user,onLogout}) {
               h("td",null,h("div",{style:{display:"flex",gap:4,flexWrap:"wrap"}},
                 h("button",{onClick:()=>setViewId(r.id),className:"btn sm",style:{background:"var(--p)",color:"#fff",border:"none",fontSize:11}},"View"),
                 !r.is_signed&&h("button",{onClick:()=>{setSignId(r.id);setNote("");},className:"btn sm",style:{background:"var(--ok)",color:"#fff",border:"none",fontSize:11}},"Sign"),
-                h("button",{onClick:()=>window.open(API+"/api/reports/"+r.id+"/pdf?token="+encodeURIComponent(TOKEN),"_blank"),className:"btn sm teal",style:{color:"#fff",fontSize:11}},"PDF"),
+                h("button",{onClick:()=>window.open(API+"/api/reports/"+r.id+"/pdf","_blank"),className:"btn sm teal",style:{color:"#fff",fontSize:11}},"PDF"),
                 h("button",{onClick:()=>sendWA(r.id),className:"btn sm",style:{background:"#25D366",color:"#fff",border:"none",fontSize:11}},"WhatsApp"),
                 h("button",{onClick:()=>sendMail(r.id),className:"btn sm",style:{background:"#1A73E8",color:"#fff",border:"none",fontSize:11}},"Email")
               ))

@@ -67,22 +67,52 @@ function TechApp({user,onLogout}) {
     async function loadSample(s) {
       setSelected(s);setParams([]);setInputs({});setTechNotes("");setSavedMsg("Loading...");
       updateStatus(s.id,"Processing").catch(function(){});
-      try {
-        const sd=await api("GET","/api/samples/"+s.id);
-        if(!sd.sample){setSavedMsg("Error loading sample.");return;}
-        const sampleTests=sd.sample.tests||[];
-        if(!sampleTests.length){setSavedMsg("No tests linked to this sample. Book a new sample.");return;}
-        const withParams=sampleTests.filter(t=>Array.isArray(t.parameters)&&t.parameters.length>0);
-        if(!withParams.length){setSavedMsg("No parameters configured. Go to Admin > Tests > Params.");return;}
-        setParams(withParams);setSavedMsg("");
-        const ni={};
-        withParams.forEach(t=>t.parameters.forEach(p=>{
-          ni[p.id]={value:"",flag:"Normal",unit:p.unit||"",ref:p.range_text||""};
-        }));
-        setInputs(ni);
-      } catch(err){setSavedMsg("Error: "+String(err));}
-    }
 
+      // Get full catalogue with parameters (confirmed working from /api/tests)
+      const td=await api("GET","/api/tests");
+      const allCatalog=(td.tests)||[];
+
+      // Get sample to find linked test IDs
+      const sd=await api("GET","/api/samples/"+s.id);
+      const sampleData=sd.sample||{};
+
+      // Get test IDs from sample - try both test_ids array and tests array
+      const rawIds=[
+        ...((sampleData.test_ids)||[]),
+        ...((sampleData.tests)||[]).map(t=>String(t.id))
+      ];
+      const testIds=[...new Set(rawIds.map(id=>String(id).trim()))];
+
+      // If no test_ids linked, show all catalogue tests as fallback for debugging
+      if(!testIds.length){
+        setSavedMsg("No tests linked to this sample. Please book a new test after today's update.");
+        return;
+      }
+
+      // Match catalogue tests to sample's test_ids (string comparison)
+      const matchedTests=allCatalog.filter(t=>testIds.includes(String(t.id).trim()));
+
+      if(!matchedTests.length){
+        setSavedMsg("Debug: Sample has test_ids ["+testIds.join(",")+"] but none matched catalogue. Contact admin.");
+        return;
+      }
+
+      // Filter to tests with parameters
+      const withParams=matchedTests.filter(t=>Array.isArray(t.parameters)&&t.parameters.length>0);
+
+      if(!withParams.length){
+        const names=matchedTests.map(t=>t.name).join(", ");
+        setSavedMsg("Tests linked: "+names+". But no parameters found in Admin > Tests > Params.");
+        return;
+      }
+
+      setParams(withParams);setSavedMsg("");
+      const ni={};
+      withParams.forEach(t=>t.parameters.forEach(p=>{
+        ni[p.id]={value:"",flag:"Normal",unit:p.unit||"",ref:p.range_text||"",param_name:p.param_name};
+      }));
+      setInputs(ni);
+    }
     function autoFlag(p,val){
       if(!val||isNaN(val))return "Normal";
       const v=parseFloat(val);
@@ -90,37 +120,17 @@ function TechApp({user,onLogout}) {
       if(p.range_male_max!=null&&v>parseFloat(p.range_male_max))return "High";
       return "Normal";
     }
-
-    async function saveAll(){
-      // Save all tests at once
-      let anyError=false;let lastReport="";
-      setSaving(true);setSavedMsg("Saving...");
-      for(const test of params){
-        const results=test.parameters.map(p=>({
-          param_name:p.param_name,
-          value:inputs[p.id]?.value||"",
-          unit:p.unit||"",
-          flag:inputs[p.id]?.value?(inputs[p.id]?.flag||"Normal"):"Pending",
-          ref_range:p.range_text||""
-        }));
-        const filled=results.filter(r=>r.value).length;
-        if(!filled)continue;
-        const d=await api("POST","/api/reports/sample/"+selected.id+"/test/"+test.id,{results,tech_notes:techNotes});
-        if(d.report)lastReport=d.report.report_no;
-        else{anyError=true;console.error("Save error:",d.error);}
-      }
+    async function saveTest(test){
+      const results=test.parameters.map(p=>({
+        param_name:p.param_name,value:inputs[p.id]?.value||"",
+        unit:p.unit||"",flag:inputs[p.id]?.flag||"Normal",ref_range:p.range_text||""
+      })).filter(r=>r.value);
+      if(!results.length){setSavedMsg("Enter at least one value.");return;}
+      setSaving(true);setSavedMsg("");
+      const d=await api("POST","/api/reports/sample/"+selected.id+"/test/"+test.id,{results,tech_notes:techNotes});
       setSaving(false);
-      // Mark as Reported for doctor
-      if(lastReport){
-        await updateStatus(selected.id,"Reported").catch(function(){});
-        setSavedMsg("✅ Results saved! Report: "+lastReport+" — Submitted for doctor review.");
-        // Refresh sample list
-        api("GET","/api/samples?limit=50").then(d=>{
-          if(d.samples){setAllSamples(d.samples);setSamples(d.samples.filter(s=>s.status==="Collected"||s.status==="Processing"));}
-        });
-      } else {
-        setSavedMsg(anyError?"❌ Error: Could not save results. Check that tests are properly linked.":"Enter at least one value.");
-      }
+      if(d.report)setSavedMsg("Saved! Report: "+d.report.report_no);
+      else setSavedMsg("Error: "+(d.error||"Unknown"));
     }
 
     if(viewId)return h(ReportViewer,{reportId:viewId,onClose:()=>setViewId(null),showSendActions:false});
@@ -134,11 +144,15 @@ function TechApp({user,onLogout}) {
         h("button",{onClick:async()=>{
           const d=await api("GET","/api/samples?limit=50");
           if(d.samples){setAllSamples(d.samples);setSamples(d.samples.filter(s=>s.status==="Collected"||s.status==="Processing"));}
-        },className:"btn sm"},"🔄 Refresh")
+        },className:"btn sm"},"🔄 Refresh Queue")
       ),
       queue.length===0&&h("div",{className:"card",style:{textAlign:"center",padding:40}},
         h("div",{style:{fontSize:44,marginBottom:8}},"✅"),
-        h("p",{style:{color:"var(--t2)",marginBottom:14}},"No pending samples.")
+        h("p",{style:{color:"var(--t2)",marginBottom:14}},"No pending samples. Tap Refresh if Admin just collected a sample."),
+        h("button",{onClick:async()=>{
+          const d=await api("GET","/api/samples?limit=50");
+          if(d.samples){setAllSamples(d.samples);setSamples(d.samples.filter(s=>s.status==="Collected"||s.status==="Processing"));}
+        },className:"btn primary",style:{width:"auto",padding:"9px 22px"}},"🔄 Refresh Queue")
       ),
       queue.map(s=>h("div",{key:s.id,className:"card"},
         h("div",{style:{display:"flex",justifyContent:"space-between",alignItems:"center",flexWrap:"wrap",gap:10}},
@@ -147,9 +161,7 @@ function TechApp({user,onLogout}) {
             h("div",null,
               h("div",{style:{fontWeight:600,fontSize:14}},s.patient_name||"Patient"),
               h("div",{style:{fontFamily:"var(--mono)",fontSize:11,color:"var(--p)"}},s.sample_no),
-              h("div",{style:{fontSize:11,color:"var(--t3)"}},
-                (s.test_codes||[]).join(", ")||"No tests"
-              )
+              s.priority==="Urgent"&&h(Badge,{label:"URGENT",type:"danger"})
             )
           ),
           h("div",{style:{display:"flex",gap:8}},
@@ -161,81 +173,60 @@ function TechApp({user,onLogout}) {
     );
 
     return h("div",{className:"fade-in"},
-      h("div",{style:{display:"flex",alignItems:"center",gap:12,marginBottom:14,flexWrap:"wrap"}},
+      h("div",{style:{display:"flex",alignItems:"center",gap:12,marginBottom:18}},
         h("button",{onClick:()=>setSelected(null),className:"btn sm"},"← Back"),
-        h("div",{style:{flex:1}},
+        h("div",null,
           h("div",{className:"page-title"},selected.patient_name||"Patient"),
           h("div",{className:"page-sub"},selected.sample_no+" · enter results")
-        ),
-        params.length>0&&h("button",{onClick:saveAll,disabled:saving,className:"btn primary",style:{width:"auto",padding:"9px 20px"}},
-          saving?"Saving...":"Save & Submit for Review ✓")
-      ),
-      savedMsg&&h("div",{className:"alert "+(savedMsg.includes("Error")||savedMsg.includes("No test")?"alert-err":savedMsg.includes("✅")?"alert-ok":"alert-ok"),style:{wordBreak:"break-all"}},savedMsg),
-      params.length===0&&!savedMsg&&h("div",{className:"card",style:{textAlign:"center",padding:30}},
-        h("div",{style:{fontSize:36,marginBottom:8}},"⚗️"),
-        h("p",{style:{color:"var(--t3)",fontSize:13}},"No parameters found."),
-        h("button",{onClick:()=>setSelected(null),className:"btn",style:{marginTop:12,width:"auto",padding:"8px 20px"}},"← Back")
-      ),
-      params.length>0&&h("div",{className:"card",style:{padding:0,overflow:"visible"}},
-        h("div",{className:"table-wrap"},
-          h("table",{className:"glass-table"},
-            h("thead",null,h("tr",null,
-              h("th",null,"Test"),
-              h("th",null,"Parameter"),
-              h("th",null,"Reference Range"),
-              h("th",null,"Value"),
-              h("th",null,"Unit"),
-              h("th",null,"Flag")
-            )),
-            h("tbody",null,
-              params.map(test=>
-                (test.parameters||[]).map((p,pi)=>h("tr",{key:p.id,
-                  style:{background:inputs[p.id]?.value?"rgba(10,92,71,0.04)":"transparent"}},
-                  pi===0&&h("td",{rowSpan:(test.parameters||[]).length,
-                    style:{verticalAlign:"top",paddingTop:10,fontWeight:600,fontSize:12,
-                      color:"var(--p)",borderRight:"1px solid var(--b2)"}},
-                    h("div",null,test.name),
-                    h("div",{style:{fontSize:9,color:"var(--t3)",fontFamily:"var(--mono)",fontWeight:400,marginTop:2}},test.category)
-                  ),
-                  h("td",{style:{fontWeight:500,fontSize:13}},p.param_name),
-                  h("td",{style:{fontSize:11,color:"var(--t3)",fontFamily:"var(--mono)"}},p.range_text||"—"),
-                  h("td",null,
-                    h("input",{
-                      type:"number",
-                      step:"any",
-                      value:inputs[p.id]?.value||"",
-                      onChange:e=>{const v=e.target.value;setInputs(prev=>({...prev,[p.id]:{...prev[p.id],value:v}}));},
-                      onBlur:e=>{const v=e.target.value;const flag=autoFlag(p,v);setInputs(prev=>({...prev,[p.id]:{...prev[p.id],value:v,flag}}));},
-                      placeholder:"",
-                      style:{textAlign:"center",fontWeight:600,width:"100%",minWidth:80,MozAppearance:"textfield"}
-                    })
-                  ),
-                  h("td",{style:{fontFamily:"var(--mono)",fontSize:11,color:"var(--t3)"}},p.unit||"—"),
-                  h("td",null,
-                    h("select",{
-                      value:inputs[p.id]?.flag||"Normal",
-                      onChange:e=>setInputs(prev=>({...prev,[p.id]:{...prev[p.id],flag:e.target.value}})),
-                      style:{fontSize:11,
-                        color:{High:"var(--danger)",Low:"var(--warn)",Normal:"var(--ok)",Critical:"var(--danger)",Pending:"var(--t3)"}[inputs[p.id]?.flag||"Normal"]||"var(--ok)"}
-                    },
-                      ["Normal","High","Low","Critical","Borderline","Pending"].map(f=>h("option",{key:f,value:f},f))
-                    )
-                  )
-                ))
-              )
-            )
-          )
         )
       ),
-      params.length>0&&h("div",{className:"card"},
-        h("div",{className:"form-group"},
-          h("label",null,"Technician Notes"),
-          h("textarea",{value:techNotes,onChange:e=>setTechNotes(e.target.value),rows:2,
-            placeholder:"Specimen quality, observations...",style:{resize:"vertical"}})
+      savedMsg&&h("div",{className:"alert "+(savedMsg.includes("Error")||savedMsg.includes("Debug")||savedMsg.includes("No test")||savedMsg.includes("Sample has")?"alert-err":"alert-ok"),style:{wordBreak:"break-all"}},savedMsg),
+      params.length===0&&!savedMsg&&h("div",{className:"card",style:{textAlign:"center",padding:30}},
+        h("div",{style:{fontSize:36,marginBottom:8}},"⚗️"),
+        h("p",{style:{color:"var(--t3)",fontSize:13}},"No test parameters found. Add parameters in the Tests catalogue first."),
+        h("button",{onClick:()=>setSelected(null),className:"btn",style:{marginTop:12,width:"auto",padding:"8px 20px"}},"← Back")
+      ),
+      params.map(test=>h("div",{key:test.id,className:"card"},
+        h("div",{style:{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:14,flexWrap:"wrap",gap:10}},
+          h("div",null,
+            h("div",{style:{fontFamily:"var(--mono)",fontSize:10,color:"var(--p)",fontWeight:600,letterSpacing:".06em"}},test.category),
+            h("div",{style:{fontWeight:600,fontSize:15}},test.name)
+          ),
+          h("button",{onClick:()=>saveTest(test),disabled:saving,className:"btn sm teal",style:{color:"#fff"}},saving?"Saving...":"Save Results ✓")
         ),
-        h("button",{onClick:saveAll,disabled:saving,className:"btn primary"},
-          saving?"Saving...":"Save & Submit for Review ✓")
-      )
+        h("div",{style:{display:"grid",gridTemplateColumns:"2fr 1.5fr 1fr 1.2fr",gap:"0 12px",padding:"6px 8px",background:"var(--surface2)",borderRadius:"var(--r-sm)",marginBottom:6}},
+          ["Parameter","Value","Unit","Flag"].map(hdr=>h("div",{key:hdr,style:{fontSize:10,fontWeight:600,color:"var(--t3)",fontFamily:"var(--mono)",textTransform:"uppercase"}},hdr))
+        ),
+        test.parameters.map(p=>h("div",{key:p.id,className:"param-row"},
+          h("div",null,
+            h("div",{style:{fontWeight:500,fontSize:13}},p.param_name),
+            h("div",{style:{fontSize:10,color:"var(--t3)",fontFamily:"var(--mono)"}},p.range_text||"")
+          ),
+          h("input",{
+                      type:"number",step:"any",
+                      value:inputs[p.id]?.value||"",
+                      onChange:e=>{
+                        const v=e.target.value;
+                        setInputs(prev=>({...prev,[p.id]:{...prev[p.id],value:v}}));
+                      },
+                      onBlur:e=>{
+                        const v=e.target.value;
+                        const flag=autoFlag(p,v);
+                        setInputs(prev=>({...prev,[p.id]:{...prev[p.id],flag}}));
+                      },
+                      placeholder:"",
+                      style:{textAlign:"center",fontWeight:600,width:"100%",fontSize:14}
+                    }),
+          h("input",{value:p.unit||"",disabled:true,style:{textAlign:"center",fontSize:12,color:"var(--t3)",background:"var(--surface2)"}}),
+          h("select",{value:inputs[p.id]?.flag||"Normal",onChange:e=>setInputs(prev=>({...prev,[p.id]:{...prev[p.id],flag:e.target.value}}))},
+            ["Normal","High","Low","Critical","Borderline"].map(f=>h("option",{key:f,value:f},f))
+          )
+        )),
+        h("div",{style:{marginTop:14}},
+          h("label",null,"Technician Notes"),
+          h("textarea",{value:techNotes,onChange:e=>setTechNotes(e.target.value),rows:2,placeholder:"Specimen quality, observations...",style:{resize:"vertical"}})
+        )
+      ))
     );
   }
 
@@ -322,89 +313,22 @@ function DoctorApp({user,onLogout}) {
 
 
   function SignOff() {
-    const [pendingReports,setPendingReports]=useState([]);
-    const [loadingSO,setLoadingSO]=useState(true);
-    const [signId,setSignId]=useState(null);
-    const [note,setNote]=useState("");
-    const [signing,setSigning]=useState(false);
-    const [soMsg,setSoMsg]=useState("");
-
-    useEffect(()=>{
-      api("GET","/api/reports/all").then(d=>{
-        if(d.reports) setPendingReports(d.reports.filter(r=>!r.is_signed));
-        setLoadingSO(false);
-      }).catch(()=>setLoadingSO(false));
-    },[]);
-
-    async function doSign(reportId){
-      setSigning(true);setSoMsg("");
-      const d=await api("PATCH","/api/reports/"+reportId+"/sign",{pathologist_note:note});
-      setSigning(false);
-      if(d.report){
-        setPendingReports(prev=>prev.filter(r=>r.id!==reportId));
-        setSignId(null);setNote("");
-        setSoMsg("✅ Report signed and dispatched!");
-      } else setSoMsg("Error: "+(d.error||"Unknown"));
-    }
-
     return h("div",{className:"fade-in"},
-      signId&&h(Modal,{title:"Sign & Verify Report",onClose:()=>setSignId(null)},
-        h("div",{style:{background:"var(--p-light)",borderRadius:"var(--r-md)",padding:"12px 14px",marginBottom:14}},
-          h("div",{style:{fontSize:11,fontWeight:600,color:"var(--p)",fontFamily:"var(--mono)",marginBottom:4}},"SIGNING AS"),
-          h("div",{style:{fontSize:14,fontWeight:600}},user.name),
-          h("div",{style:{fontSize:12,color:"var(--t2)"}},user.designation||"Pathologist"),
-          h("div",{style:{fontSize:11,color:"var(--t3)",fontFamily:"var(--mono)"}},new Date().toLocaleDateString("en-IN")+" · "+new Date().toLocaleTimeString("en-IN",{hour:"2-digit",minute:"2-digit"}))
-        ),
-        h("div",{className:"form-group"},
-          h("label",null,"Pathologist Remarks (optional)"),
-          h("textarea",{value:note,onChange:e=>setNote(e.target.value),rows:3,placeholder:"All values within normal limits...",style:{resize:"vertical"}})
-        ),
-        h("div",{style:{display:"flex",gap:10}},
-          h("button",{onClick:()=>doSign(signId),disabled:signing,className:"btn primary",style:{flex:1}},signing?"Signing...":"Sign & Verify Report ✓"),
-          h("button",{onClick:()=>setSignId(null),className:"btn",style:{padding:"12px 20px"}},"Cancel")
-        )
-      ),
-      h("div",{className:"page-header"},
-        h("div",{style:{display:"flex",justifyContent:"space-between",alignItems:"center"}},
-          h("div",null,h("div",{className:"page-title"},"Reports Sign-off"),h("div",{className:"page-sub"},"review results and sign")),
-          h("button",{onClick:()=>{setLoadingSO(true);api("GET","/api/reports/all").then(d=>{if(d.reports)setPendingReports(d.reports.filter(r=>!r.is_signed));setLoadingSO(false);});},className:"btn sm"},"🔄 Refresh")
-        )
-      ),
-      soMsg&&h("div",{className:"alert alert-ok"},soMsg),
-      loadingSO&&h(Spinner),
-      !loadingSO&&pendingReports.length===0&&h("div",{className:"card",style:{textAlign:"center",padding:40}},
-        h("div",{style:{fontSize:44,marginBottom:8}},"✅"),
-        h("p",{style:{color:"var(--t2)"}},"All reports signed off!")
-      ),
-      !loadingSO&&pendingReports.map(r=>h("div",{key:r.id,className:"card"},
-        h("div",{style:{marginBottom:12}},
-          h("div",{style:{display:"flex",justifyContent:"space-between",alignItems:"flex-start",flexWrap:"wrap",gap:8}},
-            h("div",null,
-              h("div",{style:{fontWeight:600,fontSize:14}},r.patient_name||"—"),
-              h("div",{style:{fontSize:11,color:"var(--t3)",fontFamily:"var(--mono)"}},r.patient_no+" · "+r.sample_no),
-              h("div",{style:{fontSize:12,color:"var(--p)",fontWeight:500,marginTop:4}},r.test_name||"—"),
-              h("div",{style:{fontSize:11,color:"var(--t3)",fontFamily:"var(--mono)"}},new Date(r.created_at).toLocaleDateString("en-IN"))
-            ),
-            h("div",{style:{display:"flex",gap:8,flexWrap:"wrap"}},
-              h(Badge,{label:"Pending Review",type:"warn"}),
-              h("button",{onClick:()=>{setSignId(r.id);setNote("");},className:"btn sm",style:{background:"var(--ok)",color:"#fff",border:"none"}},"Sign ✓")
-            )
-          )
-        ),
-        r.results&&r.results.filter(x=>x.value).length>0&&h("div",{className:"table-wrap",style:{marginTop:8}},
+      h("div",{className:"page-header"},h("div",{className:"page-title"},"Reports Sign-off"),h("div",{className:"page-sub"},"review and approve reported samples")),
+      samples.length===0&&h("div",{className:"card",style:{textAlign:"center",padding:40}},h("div",{style:{fontSize:44,marginBottom:8}},"✅"),h("p",{style:{color:"var(--t2)"}},"All reports signed off!")),
+      samples.length>0&&h("div",{className:"card",style:{padding:0,overflow:"visible"}},
+        h("div",{className:"table-wrap"},
           h("table",{className:"glass-table"},
-            h("thead",null,h("tr",null,["Parameter","Result","Unit","Ref Range","Flag"].map(c=>h("th",{key:c},c)))),
-            h("tbody",null,r.results.map((res,i)=>h("tr",{key:i,
-              style:{background:res.flag==="High"||res.flag==="Critical"?"rgba(192,57,43,0.05)":res.flag==="Low"?"rgba(198,124,26,0.05)":"transparent"}},
-              h("td",{style:{fontWeight:500}},res.param_name),
-              h("td",{style:{fontWeight:700,color:res.flag==="High"||res.flag==="Critical"?"var(--danger)":res.flag==="Low"?"var(--warn)":"var(--ok)"}},res.value||"—"),
-              h("td",{style:{color:"var(--t3)",fontFamily:"var(--mono)",fontSize:11}},res.unit||"—"),
-              h("td",{style:{color:"var(--t2)",fontFamily:"var(--mono)",fontSize:11}},res.ref_range||"—"),
-              h("td",null,h(Badge,{label:res.flag||"Normal",type:res.flag==="High"||res.flag==="Critical"?"danger":res.flag==="Low"?"warn":"ok"}))
+            h("thead",null,h("tr",null,["Sample","Patient","Status","Action"].map(c=>h("th",{key:c},c)))),
+            h("tbody",null,samples.map(s=>h("tr",{key:s.id},
+              h("td",{style:{fontFamily:"var(--mono)",fontWeight:600,color:"var(--p)",fontSize:12}},s.sample_no),
+              h("td",{style:{fontWeight:500}},s.patient_name||"—"),
+              h("td",null,h(Badge,{label:s.status,type:statusType(s.status)})),
+              h("td",null,h("button",{onClick:()=>signReport(s.id),className:"btn sm",style:{background:"var(--ok)",color:"#fff",border:"none",whiteSpace:"nowrap"}},"Sign & Dispatch"))
             )))
           )
         )
-      ))
+      )
     );
   }
 
@@ -416,15 +340,7 @@ function DoctorApp({user,onLogout}) {
     const [note,setNote]=useState("");
     const [saving,setSaving]=useState(false);
     const [msg,setMsg]=useState("");
-    function loadReports(){
-      setLoading(true);
-      api("GET","/api/reports/all").then(d=>{
-        if(d.reports)setReports(d.reports);
-        else setReports([]);
-        setLoading(false);
-      }).catch(()=>setLoading(false));
-    }
-    useEffect(()=>{loadReports();},[]);
+    useEffect(()=>{api("GET","/api/reports/all").then(d=>{if(d.reports)setReports(d.reports);else setReports([]);setLoading(false);}).catch(()=>setLoading(false));},[]);
     async function signReport(id){
       setSaving(true);setMsg("");
       const d=await api("PATCH","/api/reports/"+id+"/sign",{pathologist_note:note});
@@ -452,57 +368,30 @@ function DoctorApp({user,onLogout}) {
           h("button",{onClick:()=>setSignId(null),className:"btn",style:{padding:"12px 20px"}},"Cancel")
         )
       ),
-      h("div",{className:"page-header"},
-        h("div",{style:{display:"flex",justifyContent:"space-between",alignItems:"center",flexWrap:"wrap",gap:10}},
-          h("div",null,h("div",{className:"page-title"},"Reports Management"),h("div",{className:"page-sub"},"verify, dispatch and share reports")),
-          h("button",{onClick:loadReports,className:"btn sm"},"🔄 Refresh")
-        )
-      ),
+      h("div",{className:"page-header"},h("div",{className:"page-title"},"Reports Management"),h("div",{className:"page-sub"},"verify, dispatch and share reports")),
       msg&&h("div",{className:"alert "+(msg.includes("Error")||msg.includes("failed")?"alert-err":"alert-ok")},msg),
       loading&&h(Spinner),
       !loading&&reports.length===0&&h("div",{className:"card",style:{textAlign:"center",padding:40}},h("div",{style:{fontSize:44,marginBottom:8}},"📊"),h("p",{style:{color:"var(--t3)"}},"No reports yet.")),
-      reports.length>0&&h("div",null,
-        reports.map(r=>h("div",{key:r.id,className:"card",style:{marginBottom:12}},
-          h("div",{style:{display:"flex",justifyContent:"space-between",alignItems:"flex-start",flexWrap:"wrap",gap:10,marginBottom:10}},
-            h("div",{style:{flex:1}},
-              h("div",{style:{fontFamily:"var(--mono)",fontWeight:700,color:"var(--p)",fontSize:12,marginBottom:3}},r.report_no||"—"),
-              h("div",{style:{fontWeight:600,fontSize:14}},r.patient_name||"—"),
-              h("div",{style:{fontSize:11,color:"var(--t3)",fontFamily:"var(--mono)"}},r.patient_no+" · "+(r.sample_no||"")),
-              h("div",{style:{fontSize:12,color:"var(--t2)",fontWeight:500,marginTop:4}},r.test_name||"—"),
-              h("div",{style:{fontSize:11,color:"var(--t3)",fontFamily:"var(--mono)"}},new Date(r.created_at).toLocaleDateString("en-IN"))
-            ),
-            h("div",{style:{display:"flex",flexDirection:"column",gap:6,alignItems:"flex-end"}},
-              r.is_signed?h(Badge,{label:"✓ Verified",type:"ok"}):
-              r.results&&r.results.filter(x=>x.value).length>0?h(Badge,{label:"Pending Sign",type:"warn"}):
-              h(Badge,{label:"No Results",type:"gray"}),
-              h("div",{style:{display:"flex",gap:6,flexWrap:"wrap",justifyContent:"flex-end",marginTop:4}},
-                h("button",{onClick:()=>setViewId(r.id),className:"btn sm",style:{background:"var(--p)",color:"#fff",border:"none"}},"👁 View"),
-                !r.is_signed&&h("button",{onClick:()=>{setSignId(r.id);setNote("");},className:"btn sm",style:{background:"var(--ok)",color:"#fff",border:"none"}},"✓ Sign"),
-                h("button",{onClick:()=>window.open(API+"/api/reports/"+r.id+"/pdf?token="+encodeURIComponent(TOKEN),"_blank"),className:"btn sm teal",style:{color:"#fff"}},"📄 PDF"),
-                h("button",{onClick:()=>sendWA(r.id),className:"btn sm",style:{background:"#25D366",color:"#fff",border:"none"}},"💬 WA"),
-                h("button",{onClick:()=>sendMail(r.id),className:"btn sm",style:{background:"#1A73E8",color:"#fff",border:"none"}},"✉ Mail")
-              )
-            )
-          ),
-          r.results&&r.results.filter(x=>x.value).length>0&&h("div",{style:{borderTop:"1px solid var(--b2)",paddingTop:10}},
-            h("div",{style:{fontSize:10,fontWeight:600,color:"var(--t3)",fontFamily:"var(--mono)",marginBottom:6}},
-              r.results.filter(x=>x.value).length+" PARAMS RECORDED"
-            ),
-            h("div",{className:"table-wrap"},
-              h("table",{className:"glass-table"},
-                h("thead",null,h("tr",null,["Parameter","Result","Unit","Ref Range","Flag"].map(c=>h("th",{key:c},c)))),
-                h("tbody",null,r.results.filter(x=>x.value).map((res,i)=>h("tr",{key:i,
-                  style:{background:res.flag==="High"||res.flag==="Critical"?"rgba(192,57,43,0.05)":res.flag==="Low"?"rgba(198,124,26,0.05)":"transparent"}},
-                  h("td",{style:{fontWeight:500,fontSize:12}},res.param_name),
-                  h("td",{style:{fontWeight:700,color:res.flag==="High"||res.flag==="Critical"?"var(--danger)":res.flag==="Low"?"var(--warn)":"var(--ok)"}},res.value),
-                  h("td",{style:{color:"var(--t3)",fontFamily:"var(--mono)",fontSize:11}},res.unit||"—"),
-                  h("td",{style:{color:"var(--t2)",fontFamily:"var(--mono)",fontSize:11}},res.ref_range||"—"),
-                  h("td",null,h(Badge,{label:res.flag||"Normal",type:res.flag==="High"||res.flag==="Critical"?"danger":res.flag==="Low"?"warn":"ok"}))
-                )))
-              )
-            )
+      reports.length>0&&h("div",{className:"card",style:{padding:0,overflow:"visible"}},
+        h("div",{className:"table-wrap"},
+          h("table",{className:"glass-table"},
+            h("thead",null,h("tr",null,["Report No","Patient","Test","Date","Status","Actions"].map(c=>h("th",{key:c},c)))),
+            h("tbody",null,reports.map(r=>h("tr",{key:r.id},
+              h("td",{style:{fontFamily:"var(--mono)",fontWeight:700,color:"var(--p)",fontSize:12}},r.report_no||"—"),
+              h("td",null,h("div",{style:{fontWeight:500,fontSize:13}},r.patient_name),h("div",{style:{fontSize:10,color:"var(--t3)",fontFamily:"var(--mono)"}},r.patient_no)),
+              h("td",{style:{fontSize:12,color:"var(--t2)"}},r.test_name),
+              h("td",{style:{fontSize:11,color:"var(--t3)",fontFamily:"var(--mono)"}},new Date(r.created_at).toLocaleDateString("en-IN")),
+              h("td",null,r.is_signed?h(Badge,{label:"Verified",type:"ok"}):h(Badge,{label:"Pending",type:"warn"})),
+              h("td",null,h("div",{style:{display:"flex",gap:4,flexWrap:"wrap"}},
+                h("button",{onClick:()=>setViewId(r.id),className:"btn sm",style:{background:"var(--p)",color:"#fff",border:"none",fontSize:11}},"View"),
+                !r.is_signed&&h("button",{onClick:()=>{setSignId(r.id);setNote("");},className:"btn sm",style:{background:"var(--ok)",color:"#fff",border:"none",fontSize:11}},"Sign"),
+                h("button",{onClick:()=>window.open(API+"/api/reports/"+r.id+"/pdf?token="+encodeURIComponent(TOKEN),"_blank"),className:"btn sm teal",style:{color:"#fff",fontSize:11}},"PDF"),
+                h("button",{onClick:()=>sendWA(r.id),className:"btn sm",style:{background:"#25D366",color:"#fff",border:"none",fontSize:11}},"WhatsApp"),
+                h("button",{onClick:()=>sendMail(r.id),className:"btn sm",style:{background:"#1A73E8",color:"#fff",border:"none",fontSize:11}},"Email")
+              ))
+            )))
           )
-        ))
+        )
       )
     );
   }

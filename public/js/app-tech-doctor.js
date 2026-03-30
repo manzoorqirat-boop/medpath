@@ -107,16 +107,20 @@ function TechApp({user,onLogout}) {
         if(!filled)continue;
         const d=await api("POST","/api/reports/sample/"+selected.id+"/test/"+test.id,{results,tech_notes:techNotes});
         if(d.report)lastReport=d.report.report_no;
-        else anyError=true;
-      }
-      // Mark as Reported for doctor
-      if(!anyError&&lastReport){
-        await updateStatus(selected.id,"Reported").catch(function(){});
-        setSavedMsg("✅ Results saved! Report: "+lastReport+" — Sent for doctor review.");
-      } else {
-        setSavedMsg(anyError?"Error saving some results. Try again.":"Enter at least one value.");
+        else{anyError=true;console.error("Save error:",d.error);}
       }
       setSaving(false);
+      // Mark as Reported for doctor
+      if(lastReport){
+        await updateStatus(selected.id,"Reported").catch(function(){});
+        setSavedMsg("✅ Results saved! Report: "+lastReport+" — Submitted for doctor review.");
+        // Refresh sample list
+        api("GET","/api/samples?limit=50").then(d=>{
+          if(d.samples){setAllSamples(d.samples);setSamples(d.samples.filter(s=>s.status==="Collected"||s.status==="Processing"));}
+        });
+      } else {
+        setSavedMsg(anyError?"❌ Error: Could not save results. Check that tests are properly linked.":"Enter at least one value.");
+      }
     }
 
     if(viewId)return h(ReportViewer,{reportId:viewId,onClose:()=>setViewId(null),showSendActions:false});
@@ -343,7 +347,15 @@ function DoctorApp({user,onLogout}) {
     const [note,setNote]=useState("");
     const [saving,setSaving]=useState(false);
     const [msg,setMsg]=useState("");
-    useEffect(()=>{api("GET","/api/reports/all").then(d=>{if(d.reports)setReports(d.reports);else setReports([]);setLoading(false);}).catch(()=>setLoading(false));},[]);
+    function loadReports(){
+      setLoading(true);
+      api("GET","/api/reports/all").then(d=>{
+        if(d.reports)setReports(d.reports);
+        else setReports([]);
+        setLoading(false);
+      }).catch(()=>setLoading(false));
+    }
+    useEffect(()=>{loadReports();},[]);
     async function signReport(id){
       setSaving(true);setMsg("");
       const d=await api("PATCH","/api/reports/"+id+"/sign",{pathologist_note:note});
@@ -371,7 +383,12 @@ function DoctorApp({user,onLogout}) {
           h("button",{onClick:()=>setSignId(null),className:"btn",style:{padding:"12px 20px"}},"Cancel")
         )
       ),
-      h("div",{className:"page-header"},h("div",{className:"page-title"},"Reports Management"),h("div",{className:"page-sub"},"verify, dispatch and share reports")),
+      h("div",{className:"page-header"},
+        h("div",{style:{display:"flex",justifyContent:"space-between",alignItems:"center",flexWrap:"wrap",gap:10}},
+          h("div",null,h("div",{className:"page-title"},"Reports Management"),h("div",{className:"page-sub"},"verify, dispatch and share reports")),
+          h("button",{onClick:loadReports,className:"btn sm"},"🔄 Refresh")
+        )
+      ),
       msg&&h("div",{className:"alert "+(msg.includes("Error")||msg.includes("failed")?"alert-err":"alert-ok")},msg),
       loading&&h(Spinner),
       !loading&&reports.length===0&&h("div",{className:"card",style:{textAlign:"center",padding:40}},h("div",{style:{fontSize:44,marginBottom:8}},"📊"),h("p",{style:{color:"var(--t3)"}},"No reports yet.")),

@@ -63,26 +63,57 @@ function TechApp({user,onLogout}) {
 
   function Results() {
     const queue=samples.filter(s=>s.status==="Collected"||s.status==="Processing");
+    const [submittedReports,setSubmittedReports]=useState(null); // null=not checked, []=none, [...]= submitted
+    const [editReason,setEditReason]=useState("");
+    const [requesting,setRequesting]=useState(false);
 
     async function loadSample(s) {
-      setSelected(s);setParams([]);setInputs({});setTechNotes("");setSavedMsg("Loading...");
+      setSelected(s);setParams([]);setInputs({});setTechNotes("");
+      setSavedMsg("Loading...");setSubmittedReports(null);
       updateStatus(s.id,"Processing").catch(function(){});
       try {
+        // Check if already submitted
+        const sr=await api("GET","/api/reports/sample/"+s.id+"/submitted");
+        if(sr.submitted && sr.reports && sr.reports.length>0){
+          // Check if any report has edit approved
+          const anyApproved=sr.reports.some(r=>r.edit_approved);
+          const anyRequested=sr.reports.some(r=>r.edit_requested);
+          if(!anyApproved){
+            // Show submitted state - no edit allowed
+            setSubmittedReports(sr.reports);
+            setSavedMsg("");
+            return;
+          }
+          // Edit approved - clear approval and allow re-entry
+          setSavedMsg("✏️ Edit approved by admin. You may now modify results.");
+        }
+        // Load sample for entry
         const sd=await api("GET","/api/samples/"+s.id);
         if(!sd.sample){setSavedMsg("Error loading sample.");return;}
         const sampleTests=sd.sample.tests||[];
         if(!sampleTests.length){setSavedMsg("No tests linked to this sample.");return;}
         const withParams=sampleTests.filter(t=>Array.isArray(t.parameters)&&t.parameters.length>0);
-        if(!withParams.length){setSavedMsg("No parameters found. Add parameters in Admin > Tests.");return;}
-        setParams(withParams);setSavedMsg("");
-        const ni={};
-        withParams.forEach(t=>t.parameters.forEach(p=>{ni[p.id]={value:"",flag:"Normal"};}));
-        setInputs(ni);
+        if(!withParams.length){setSavedMsg("No parameters found. Add in Admin > Tests.");return;}
+        setParams(withParams);
+        setSubmittedReports(null);
       } catch(err){setSavedMsg("Error: "+String(err));}
     }
 
+    async function requestEdit(reportId){
+      if(!editReason.trim()){alert("Please enter a reason for modification.");return;}
+      setRequesting(true);
+      const d=await api("POST","/api/reports/"+reportId+"/request-edit",{reason:editReason});
+      setRequesting(false);
+      if(d.message){
+        setEditReason("");
+        // Refresh submitted reports
+        const sr=await api("GET","/api/reports/sample/"+selected.id+"/submitted");
+        if(sr.reports)setSubmittedReports(sr.reports);
+        alert("Edit request sent to admin for approval.");
+      } else alert("Error: "+(d.error||"Unknown"));
+    }
+
     async function saveAll(){
-      // Read from DOM - uncontrolled inputs (no keyboard dismiss)
       let anyError=false;let lastReport="";
       setSaving(true);setSavedMsg("Saving...");
       for(const test of params){
@@ -106,13 +137,17 @@ function TechApp({user,onLogout}) {
         api("GET","/api/samples?limit=50").then(d=>{
           if(d.samples){setAllSamples(d.samples);setSamples(d.samples.filter(s=>s.status==="Collected"||s.status==="Processing"));}
         });
+        // Show submitted state after save
+        const sr=await api("GET","/api/reports/sample/"+selected.id+"/submitted");
+        if(sr.reports){setSubmittedReports(sr.reports);setParams([]);}
       } else {
-        setSavedMsg(anyError?"❌ Error saving. Check tests are linked to sample.":"Enter at least one value first.");
+        setSavedMsg(anyError?"❌ Error saving.":"Enter at least one value first.");
       }
     }
 
     if(viewId)return h(ReportViewer,{reportId:viewId,onClose:()=>setViewId(null),showSendActions:false});
 
+    // ── Sample list ──
     if(!selected)return h("div",{className:"fade-in"},
       h("div",{className:"page-header"},
         h("div",{className:"page-title"},"Results Entry"),
@@ -146,6 +181,55 @@ function TechApp({user,onLogout}) {
       ))
     );
 
+    // ── Submitted state - read only ──
+    if(submittedReports&&submittedReports.length>0&&params.length===0)return h("div",{className:"fade-in"},
+      h("div",{style:{display:"flex",alignItems:"center",gap:12,marginBottom:14}},
+        h("button",{onClick:()=>{setSelected(null);setSubmittedReports(null);},className:"btn sm"},"← Back"),
+        h("div",null,
+          h("div",{className:"page-title"},selected.patient_name||"Patient"),
+          h("div",{className:"page-sub"},selected.sample_no+" · submitted")
+        )
+      ),
+      h("div",{className:"alert alert-ok",style:{marginBottom:16}},
+        "✅ Results submitted. To modify, request admin approval below."
+      ),
+      submittedReports.map(rpt=>h("div",{key:rpt.id,className:"card",style:{marginBottom:12}},
+        h("div",{style:{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10,flexWrap:"wrap",gap:8}},
+          h("div",null,
+            h("div",{style:{fontWeight:600,fontSize:14}},rpt.test_name),
+            h("div",{style:{fontFamily:"var(--mono)",fontSize:11,color:"var(--p)"}},rpt.report_no),
+            rpt.is_signed&&h(Badge,{label:"Doctor Signed",type:"ok"})
+          ),
+          h("div",null,
+            rpt.edit_requested
+            ?h(Badge,{label:"Edit Requested — Awaiting Admin",type:"warn"})
+            :!rpt.is_signed&&h("div",{style:{display:"flex",gap:8,alignItems:"center",flexWrap:"wrap"}},
+              h("input",{value:editReason,onChange:e=>setEditReason(e.target.value),
+                placeholder:"Reason for modification...",
+                style:{fontSize:12,padding:"6px 10px",border:"1px solid var(--b1)",borderRadius:"var(--r-md)",minWidth:180}}),
+              h("button",{onClick:()=>requestEdit(rpt.id),disabled:requesting,className:"btn sm",
+                style:{background:"var(--warn)",color:"#fff",border:"none",whiteSpace:"nowrap"}},
+                requesting?"Sending...":"Request Edit")
+            )
+          )
+        ),
+        (rpt.results||[]).filter(r=>r.value).length>0&&h("div",{className:"table-wrap"},
+          h("table",{className:"glass-table"},
+            h("thead",null,h("tr",null,["Parameter","Result","Unit","Ref Range","Flag"].map(c=>h("th",{key:c},c)))),
+            h("tbody",null,(rpt.results||[]).filter(r=>r.value).map((res,i)=>h("tr",{key:i,
+              style:{background:res.flag==="High"||res.flag==="Critical"?"rgba(192,57,43,0.04)":res.flag==="Low"?"rgba(198,124,26,0.04)":"transparent"}},
+              h("td",{style:{fontWeight:500}},res.param_name),
+              h("td",{style:{fontWeight:700,color:res.flag==="High"||res.flag==="Critical"?"var(--danger)":res.flag==="Low"?"var(--warn)":"var(--ok)"}},res.value),
+              h("td",{style:{fontFamily:"var(--mono)",fontSize:11,color:"var(--t3)"}},res.unit||"—"),
+              h("td",{style:{fontFamily:"var(--mono)",fontSize:11}},res.ref_range||"—"),
+              h("td",null,h(Badge,{label:res.flag||"Normal",type:res.flag==="High"||res.flag==="Critical"?"danger":res.flag==="Low"?"warn":"ok"}))
+            )))
+          )
+        )
+      ))
+    );
+
+    // ── Entry form ──
     return h("div",{className:"fade-in"},
       h("div",{style:{display:"flex",alignItems:"center",gap:12,marginBottom:14,flexWrap:"wrap"}},
         h("button",{onClick:()=>setSelected(null),className:"btn sm"},"← Back"),
@@ -162,16 +246,12 @@ function TechApp({user,onLogout}) {
         h("div",{className:"table-wrap"},
           h("table",{className:"glass-table"},
             h("thead",null,h("tr",null,
-              h("th",null,"Test"),
-              h("th",null,"Parameter"),
-              h("th",null,"Ref Range"),
-              h("th",null,"Value"),
-              h("th",null,"Unit"),
-              h("th",null,"Flag")
+              h("th",null,"Test"),h("th",null,"Parameter"),
+              h("th",null,"Ref Range"),h("th",null,"Value"),
+              h("th",null,"Unit"),h("th",null,"Flag")
             )),
             h("tbody",null,
-              params.map(test=>(test.parameters||[]).map((p,pi)=>h("tr",{key:p.id,
-                style:{background:"transparent"}},
+              params.map(test=>(test.parameters||[]).map((p,pi)=>h("tr",{key:p.id},
                 pi===0&&h("td",{rowSpan:(test.parameters||[]).length,
                   style:{verticalAlign:"top",paddingTop:12,fontWeight:600,fontSize:12,
                     color:"var(--p)",borderRight:"1px solid var(--b2)",minWidth:90}},
@@ -181,15 +261,9 @@ function TechApp({user,onLogout}) {
                 h("td",{style:{fontWeight:500,fontSize:13}},p.param_name),
                 h("td",{style:{fontSize:11,color:"var(--t3)",fontFamily:"var(--mono)"}},p.range_text||"—"),
                 h("td",null,
-                  h("input",{
-                    "data-pid":p.id,
-                    type:"tel",inputMode:"decimal",
-                    defaultValue:"",
-                    placeholder:"—",
-                    style:{textAlign:"center",fontWeight:600,width:"100%",fontSize:15,
-                      border:"1px solid var(--b1)",borderRadius:"var(--r-md)",
-                      padding:"8px 4px",background:"var(--surface)",minWidth:70}
-                  })
+                  h("input",{"data-pid":p.id,type:"tel",inputMode:"decimal",defaultValue:"",
+                    placeholder:"—",style:{textAlign:"center",fontWeight:600,width:"100%",fontSize:15,
+                      border:"1px solid var(--b1)",borderRadius:"var(--r-md)",padding:"8px 4px",background:"var(--surface)",minWidth:70}})
                 ),
                 h("td",{style:{fontFamily:"var(--mono)",fontSize:11,color:"var(--t3)",whiteSpace:"nowrap"}},p.unit||"—"),
                 h("td",{style:{fontFamily:"var(--mono)",fontSize:11,color:"var(--t3)"}},"auto")

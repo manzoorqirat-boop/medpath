@@ -95,164 +95,117 @@ function PatientApp({user,onLogout}) {
 
   function Tests() {
     const [search,setSearch]=useState("");
-    const [selected,setSelected]=useState({});
-    const [msg,setMsg]=useState("");
-    const [booking,setBooking]=useState(false);
 
-    const filtered=tests.filter(t=>
-      !search||
-      t.name.toLowerCase().includes(search.toLowerCase())||
-      t.category.toLowerCase().includes(search.toLowerCase())||
-      (t.parameters||[]).some(p=>p.param_name.toLowerCase().includes(search.toLowerCase()))
-    );
+    const getSelection=testId=>paramSelections[testId]||{mode:"full",selectedParamIds:[]};
+    const inCart=id=>cart.find(c=>c.id===id);
 
-    const isParamSel=pid=>!!selected[pid];
-    const isAllSel=test=>(test.parameters||[]).length>0&&(test.parameters||[]).every(p=>selected[p.id]);
-
-    function toggleParam(test,param){
-      setSelected(prev=>{
-        const n={...prev};
-        if(n[param.id])delete n[param.id];
-        else n[param.id]={testId:test.id,testName:test.name,category:test.category,
-          paramName:param.param_name,price:Number(param.price)||0,unit:param.unit||"",
-          range_text:param.range_text||"",
-          range_male_min:param.range_male_min,range_male_max:param.range_male_max,
-          range_female_min:param.range_female_min,range_female_max:param.range_female_max};
-        return n;
+    function getCartPrice(t) {
+      const sel=getSelection(t.id);
+      if(sel.mode==="full"||!sel.selectedParamIds.length) return Number(t.price);
+      const params=(t.parameters||[]).filter(p=>sel.selectedParamIds.includes(p.id));
+      const paramTotal=params.reduce((s,p)=>s+Number(p.price||0),0);
+      return paramTotal>0?paramTotal:Number(t.price);
+    }
+    function toggleCart(t) {
+      if(inCart(t.id)){setCart(prev=>prev.filter(c=>c.id!==t.id));}
+      else{
+        const sel=getSelection(t.id);
+        const price=getCartPrice(t);
+        setCart(prev=>[...prev,{...t,price,_booking:{test_id:t.id,mode:sel.mode,selected_param_ids:sel.selectedParamIds}}]);
+      }
+    }
+    function toggleParam(testId,paramId){
+      setParamSelections(prev=>{
+        const cur=prev[testId]||{mode:"params",selectedParamIds:[]};
+        const ids=cur.selectedParamIds.includes(paramId)?cur.selectedParamIds.filter(i=>i!==paramId):[...cur.selectedParamIds,paramId];
+        return {...prev,[testId]:{mode:ids.length?"params":"full",selectedParamIds:ids}};
       });
+      setCart(prev=>prev.filter(c=>c.id!==testId));
+    }
+    function selectAll(t){
+      setParamSelections(prev=>({...prev,[t.id]:{mode:"full",selectedParamIds:[]}}));
+      setCart(prev=>prev.filter(c=>c.id!==t.id));
     }
 
-    function toggleSelectAll(test){
-      setSelected(prev=>{
-        const n={...prev};
-        const allSel=isAllSel(test);
-        (test.parameters||[]).forEach(p=>{
-          if(allSel)delete n[p.id];
-          else n[p.id]={testId:test.id,testName:test.name,category:test.category,
-            paramName:p.param_name,price:Number(p.price)||0,unit:p.unit||"",
-            range_text:p.range_text||"",
-            range_male_min:p.range_male_min,range_male_max:p.range_male_max,
-            range_female_min:p.range_female_min,range_female_max:p.range_female_max};
-        });
-        return n;
-      });
-    }
+    const cartTotal=cart.reduce((s,t)=>s+Number(t.price),0);
+    const filtered=tests.filter(t=>t.name.toLowerCase().includes(search.toLowerCase())||t.category.toLowerCase().includes(search.toLowerCase()));
 
-    function selectAllTests(){
-      const all={};
-      filtered.forEach(test=>(test.parameters||[]).forEach(p=>{
-        all[p.id]={testId:test.id,testName:test.name,category:test.category,
-          paramName:p.param_name,price:Number(p.price)||0,unit:p.unit||"",range_text:p.range_text||""};
-      }));
-      setSelected(all);
-    }
-
-    const totalSelected=Object.keys(selected).length;
-    const totalPrice=Object.values(selected).reduce((s,p)=>s+(p.price||0),0);
-
-    // Group selected by testId for booking
-    const byTest={};
-    Object.entries(selected).forEach(([pid,info])=>{
-      if(!byTest[info.testId])byTest[info.testId]={paramIds:[]};
-      byTest[info.testId].paramIds.push(pid);
-    });
-
-    async function bookNow(){
-      if(!totalSelected){setMsg("Select at least one parameter.");return;}
-      if(!user.patientId){alert("Patient ID not found. Contact reception.");return;}
-      setBooking(true);setMsg("");
-      const bookings=Object.entries(byTest).map(([testId,v])=>({
-        test_id:testId,mode:"params",selected_param_ids:v.paramIds
-      }));
+    async function bookTests() {
+      if(!cart.length)return;
+      if(!user.patientId){alert("Patient ID not found. Please contact reception.");return;}
+      const bookings=cart.map(t=>t._booking||{test_id:t.id,mode:"full",selected_param_ids:[]});
       const data=await api("POST","/api/samples",{patient_id:user.patientId,bookings,priority:"Normal",collection_type:"Walk-in"});
-      setBooking(false);
-      if(data.sample){
-        setSamples(prev=>[data.sample,...prev]);
-        setSelected({});
-        api("GET","/api/billing").then(d=>{if(d.invoices)setBills(d.invoices);});
-        setMsg("✅ Booked! Sample No: "+data.sample.sample_no);
-        setTimeout(()=>setActive("dashboard"),2500);
-      } else setMsg("Error: "+(data.error||"Booking failed"));
+      if(data.sample){setSamples(prev=>[data.sample,...prev]);setCart([]);alert("Tests booked! Sample: "+data.sample.sample_no);}
+      else alert("Error: "+(data.error||"Booking failed"));
     }
 
     return h("div",{className:"fade-in"},
       h("div",{className:"page-header"},
-        h("div",{style:{display:"flex",justifyContent:"space-between",alignItems:"flex-start",flexWrap:"wrap",gap:10}},
-          h("div",null,
-            h("div",{className:"page-title"},"Book Tests"),
-            h("div",{className:"page-sub"},"select parameters then book")
-          ),
-          totalSelected>0&&h("div",{style:{textAlign:"right"}},
-            h("div",{style:{fontSize:12,color:"var(--t2)",marginBottom:3}},totalSelected+" parameter(s) selected"),
-            h("div",{style:{fontFamily:"var(--serif)",fontSize:22,color:"var(--p)",marginBottom:8}},"Rs."+totalPrice.toFixed(0)),
-            h("button",{onClick:bookNow,disabled:booking,className:"btn primary",style:{width:"auto",padding:"9px 24px"}},
-              booking?"Booking...":"Book Now →")
-          )
-        )
+        h("div",{className:"page-title"},"Book Tests"),
+        h("div",{className:"page-sub"},"select full test or individual parameters")
       ),
-      msg&&h("div",{className:"alert "+(msg.includes("Error")?"alert-err":"alert-ok")},msg),
-      h("div",{style:{display:"flex",gap:10,marginBottom:14,flexWrap:"wrap",alignItems:"center"}},
-        h("div",{className:"search-wrap",style:{flex:1,marginBottom:0}},
-          h("span",{className:"search-icon"},"🔍"),
-          h("input",{value:search,onChange:e=>setSearch(e.target.value),placeholder:"Search tests or parameters..."})
+      cart.length>0&&h("div",{className:"cart-bar"},
+        h("div",null,
+          h("div",{style:{fontSize:11,opacity:.7,fontFamily:"var(--mono)",letterSpacing:".04em"}},cart.length+" TEST(S) IN CART"),
+          h("div",{style:{fontFamily:"var(--serif)",fontSize:20}},"Rs."+cartTotal.toFixed(0))
         ),
-        h("button",{onClick:selectAllTests,className:"btn sm"},"☑ Select All"),
-        totalSelected>0&&h("button",{onClick:()=>setSelected({}),className:"btn sm danger-sm"},"✕ Clear")
+        h("button",{onClick:bookTests,className:"btn",style:{background:"#fff",color:"var(--p)",fontWeight:600,padding:"8px 18px",flexShrink:0}},"Book Now ->")
+      ),
+      h("div",{className:"search-wrap"},
+        h("span",{className:"search-icon"},"🔍"),
+        h("input",{value:search,onChange:e=>setSearch(e.target.value),placeholder:"Search tests..."})
       ),
       tests.length===0&&h(Spinner),
-      tests.length>0&&h("div",{className:"card",style:{padding:0,overflow:"visible"}},
-        h("div",{className:"table-wrap"},
-          h("table",{className:"glass-table"},
-            h("thead",null,h("tr",null,
-              h("th",null,"Test"),
-              h("th",null,"Parameter"),
-              h("th",null,"Unit"),
-              h("th",null,"Ref Range"),
-              h("th",null,"Price"),
-              h("th",{style:{textAlign:"center"}},"Select")
-            )),
-            h("tbody",null,
-              filtered.filter(t=>(t.parameters||[]).length>0).map(test=>{
-                const params=test.parameters||[];
-                const allSel=isAllSel(test);
-                return params.map((p,pi)=>h("tr",{key:p.id,
-                  style:{background:isParamSel(p.id)?"rgba(10,92,71,0.05)":"transparent",
-                    borderLeft:isParamSel(p.id)?"3px solid var(--p)":"3px solid transparent",
-                    cursor:"pointer"}},
-                  pi===0&&h("td",{rowSpan:params.length,
-                    style:{verticalAlign:"top",paddingTop:12,borderRight:"1px solid var(--b2)",minWidth:100}},
-                    h("div",{style:{fontWeight:600,fontSize:13,color:"var(--t1)"}},test.name),
-                    h("div",{style:{fontSize:9,color:"var(--p)",fontFamily:"var(--mono)",textTransform:"uppercase",marginBottom:6}},test.category),
-                    test.fasting_required&&h("div",{style:{fontSize:9,color:"var(--warn)",fontFamily:"var(--mono)",marginBottom:6}},"★ Fasting"),
-                    h("button",{
-                      onClick:e=>{e.stopPropagation();toggleSelectAll(test);},
-                      style:{fontSize:10,padding:"3px 8px",borderRadius:4,cursor:"pointer",
-                        background:allSel?"var(--p)":"var(--surface)",
-                        color:allSel?"#fff":"var(--t2)",
-                        border:"1px solid "+(allSel?"var(--p)":"var(--b1)"),width:"100%"}
-                    },allSel?"✓ All Selected":"Select All")
+      h("div",{style:{display:"flex",flexDirection:"column",gap:10}},
+        filtered.map(t=>{
+          const sel=getSelection(t.id);
+          const inC=inCart(t.id);
+          const hasParams=(t.parameters||[]).length>0;
+          const isExp=expanded===t.id;
+          const cartPrice=getCartPrice(t);
+          const selectedCount=sel.selectedParamIds.length;
+          return h("div",{key:t.id,className:"card",style:{padding:"14px 16px",border:inC?"2px solid var(--p)":"1px solid var(--b2)"}},
+            h("div",{style:{display:"flex",justifyContent:"space-between",alignItems:"center",flexWrap:"wrap",gap:8}},
+              h("div",{style:{flex:1}},
+                h("div",{style:{fontSize:9.5,fontWeight:600,color:"var(--p-mid)",textTransform:"uppercase",letterSpacing:".08em",fontFamily:"var(--mono)",marginBottom:2}},t.category),
+                h("div",{style:{fontWeight:600,fontSize:14,color:"var(--t1)",marginBottom:2}},t.name),
+                t.fasting_required&&h("div",{style:{fontSize:10,color:"var(--warn)",fontFamily:"var(--mono)"}},"Fasting Required"),
+                h("div",{style:{display:"flex",gap:10,alignItems:"center",marginTop:4,flexWrap:"wrap"}},
+                  h("div",{style:{fontFamily:"var(--serif)",fontSize:18}},
+                    sel.mode==="params"&&selectedCount>0?"Rs."+cartPrice.toFixed(0)+" ("+selectedCount+" params)":"Rs."+t.price
                   ),
-                  h("td",{onClick:()=>toggleParam(test,p),
-                    style:{fontWeight:isParamSel(p.id)?600:400,color:isParamSel(p.id)?"var(--p)":"var(--t1)",fontSize:13}},
-                    p.param_name),
-                  h("td",{style:{fontFamily:"var(--mono)",fontSize:11,color:"var(--t3)"}},p.unit||"—"),
-                  h("td",{style:{fontFamily:"var(--mono)",fontSize:11,color:"var(--t2)"}},p.range_text||"—"),
-                  h("td",{style:{fontFamily:"var(--serif)",fontSize:13,color:p.price>0?"var(--ok)":"var(--t3)"}},
-                    p.price>0?"Rs."+p.price:"—"),
-                  h("td",{style:{textAlign:"center"}},
-                    h("input",{type:"checkbox",checked:isParamSel(p.id),
-                      onChange:()=>toggleParam(test,p),
-                      style:{width:16,height:16,cursor:"pointer",accentColor:"var(--p)"}})
-                  )
-                ));
-              })
+                  hasParams&&h("button",{onClick:e=>{e.stopPropagation();setExpanded(isExp?null:t.id);},className:"btn sm",style:{fontSize:11,padding:"3px 10px"}},isExp?"Hide":"Select Params")
+                )
+              ),
+              h("div",{onClick:e=>{e.stopPropagation();toggleCart(t);},style:{width:36,height:36,borderRadius:"50%",background:inC?"var(--p)":"var(--surface2)",border:"2px solid "+(inC?"var(--p)":"var(--b1)"),display:"flex",alignItems:"center",justifyContent:"center",color:inC?"#fff":"var(--t3)",fontSize:18,fontWeight:700,cursor:"pointer",flexShrink:0}},inC?"v":"+")
+            ),
+            isExp&&hasParams&&h("div",{style:{marginTop:12,paddingTop:12,borderTop:"1px solid var(--b2)"}},
+              h("div",{style:{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8}},
+                h("div",{style:{fontSize:11,fontWeight:600,color:"var(--t3)",fontFamily:"var(--mono)",textTransform:"uppercase"}},"Choose Parameters"),
+                h("button",{onClick:e=>{e.stopPropagation();selectAll(t);},className:"btn sm",style:{fontSize:11}},sel.mode==="full"&&!selectedCount?"Full Test":"Reset to Full")
+              ),
+              h("div",{style:{display:"grid",gridTemplateColumns:"1fr 1fr",gap:6}},
+                (t.parameters||[]).map(p=>{
+                  const isSel=sel.selectedParamIds.includes(p.id);
+                  return h("div",{key:p.id,onClick:e=>{e.stopPropagation();toggleParam(t.id,p.id);},
+                    style:{padding:"8px 10px",borderRadius:"var(--r-md)",cursor:"pointer",
+                      border:"1.5px solid "+(isSel?"var(--p)":"var(--b2)"),
+                      background:isSel?"var(--p-light)":"var(--surface)"}},
+                    h("div",{style:{fontSize:12,fontWeight:500,color:isSel?"var(--p)":"var(--t1)"}},p.param_name),
+                    p.unit&&h("div",{style:{fontSize:10,color:"var(--t3)",fontFamily:"var(--mono)"}},p.unit),
+                    p.price>0&&h("div",{style:{fontSize:11,color:"var(--ok)"}},"+Rs."+p.price)
+                  );
+                })
+              ),
+              selectedCount>0&&h("div",{style:{marginTop:8,padding:"6px 10px",background:"var(--p-light)",borderRadius:"var(--r-sm)",fontSize:11,color:"var(--p)",fontFamily:"var(--mono)"}},
+                selectedCount+" selected - Rs."+cartPrice.toFixed(0)
+              )
             )
-          )
-        )
+          );
+        })
       )
     );
   }
-
   function Reports() {
     const [myReports,setMyReports]=useState([]);
     const [viewId,setViewId]=useState(null);
@@ -426,6 +379,7 @@ function AdminApp({user,onLogout}) {
     {id:"billing",icon:"💰",label:"Billing"},
     {id:"tests",icon:"🧪",label:"Tests"},
     {id:"users",icon:"👤",label:"Users"},
+    {id:"editrequests",icon:"✏️",label:"Edit Requests"},
   ];
   const statusOrder=["Pending","Collected","Processing","Reported","Dispatched"];
 
@@ -1123,6 +1077,81 @@ function AdminApp({user,onLogout}) {
       )
     );
   }
-  const pages={dashboard:h(Dashboard),samples:h(Samples),patients:h(Patients),billing:h(Billing),tests:h(ManageTests),users:h(UsersManagement)};
+  function EditRequests() {
+    const [requests,setRequests]=useState([]);
+    const [loading,setLoading]=useState(true);
+    const [msg,setMsg]=useState("");
+
+    useEffect(()=>{loadRequests();},[]);
+
+    async function loadRequests(){
+      setLoading(true);
+      // Get all reports with edit_requested=true
+      const d=await api("GET","/api/reports/all");
+      if(d.reports){
+        const pending=d.reports.filter(r=>r.edit_requested);
+        setRequests(pending);
+      }
+      setLoading(false);
+    }
+
+    async function approveEdit(reportId,patientName){
+      if(!confirm("Approve edit request for "+patientName+"? Technician will be able to modify results."))return;
+      const d=await api("POST","/api/reports/"+reportId+"/approve-edit",{});
+      if(d.message){
+        setMsg("✅ Edit approved for "+patientName);
+        setRequests(prev=>prev.filter(r=>r.id!==reportId));
+      } else setMsg("Error: "+(d.error||"Unknown"));
+    }
+
+    async function rejectEdit(reportId){
+      const d=await api("PATCH","/api/reports/"+reportId+"/sign",{});
+      // Just remove the request flag
+      await api("POST","/api/reports/"+reportId+"/request-edit",{reason:""});
+      setRequests(prev=>prev.filter(r=>r.id!==reportId));
+      setMsg("Request rejected.");
+    }
+
+    return h("div",{className:"fade-in"},
+      h("div",{className:"page-header"},
+        h("div",{style:{display:"flex",justifyContent:"space-between",alignItems:"center"}},
+          h("div",null,
+            h("div",{className:"page-title"},"Edit Requests"),
+            h("div",{className:"page-sub"},"technician result modification approvals")
+          ),
+          h("button",{onClick:loadRequests,className:"btn sm"},"🔄 Refresh")
+        )
+      ),
+      msg&&h("div",{className:"alert "+(msg.includes("Error")?"alert-err":"alert-ok")},msg),
+      loading&&h(Spinner),
+      !loading&&requests.length===0&&h("div",{className:"card",style:{textAlign:"center",padding:40}},
+        h("div",{style:{fontSize:44,marginBottom:8}},"✅"),
+        h("p",{style:{color:"var(--t2)"}},"No pending edit requests.")
+      ),
+      !loading&&requests.map(r=>h("div",{key:r.id,className:"card",style:{marginBottom:12,borderLeft:"3px solid var(--warn)"}},
+        h("div",{style:{display:"flex",justifyContent:"space-between",alignItems:"flex-start",flexWrap:"wrap",gap:10}},
+          h("div",null,
+            h("div",{style:{fontWeight:600,fontSize:14}},r.patient_name||"Patient"),
+            h("div",{style:{fontFamily:"var(--mono)",fontSize:11,color:"var(--p)"}},r.report_no+" · "+r.sample_no),
+            h("div",{style:{fontSize:12,color:"var(--t2)",marginTop:4}},r.test_name),
+            h("div",{style:{fontSize:12,color:"var(--t2)",marginTop:4}},
+              h("span",{style:{fontWeight:600,color:"var(--warn)"}},"Reason: "),
+              r.edit_reason||"No reason given"
+            ),
+            h("div",{style:{fontSize:11,color:"var(--t3)",fontFamily:"var(--mono)",marginTop:4}},
+              "Requested: "+new Date(r.edit_requested_at||r.updated_at).toLocaleString("en-IN")
+            )
+          ),
+          h("div",{style:{display:"flex",gap:8,flexWrap:"wrap"}},
+            h("button",{onClick:()=>approveEdit(r.id,r.patient_name),className:"btn sm",
+              style:{background:"var(--ok)",color:"#fff",border:"none"}},"✓ Approve Edit"),
+            h("button",{onClick:()=>rejectEdit(r.id),className:"btn danger-sm"},"✗ Reject")
+          )
+        )
+      ))
+    );
+  }
+
+    const pages={dashboard:h(Dashboard),samples:h(Samples),patients:h(Patients),billing:h(Billing),tests:h(ManageTests),users:h(UsersManagement),editrequests:h(EditRequests)};
   return h(AppShell,{nav,active,setActive,user,onLogout},pages[active]||pages.dashboard);
 }

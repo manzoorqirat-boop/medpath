@@ -392,4 +392,52 @@ router.get("/:reportId/pdf", async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
+/* POST /api/reports/:reportId/request-edit — Technician requests modification */
+router.post("/:reportId/request-edit", authorize("technician","admin"), async (req, res, next) => {
+  try {
+    const { reason } = req.body;
+    const { rows:[report] } = await query(
+      `UPDATE reports SET edit_requested=true, edit_requested_at=NOW(), 
+       edit_approved=false, edit_reason=$1, updated_at=NOW()
+       WHERE id=$2 RETURNING *`,
+      [reason||"Modification requested", req.params.reportId]);
+    if (!report) return res.status(404).json({ error: "Report not found" });
+    res.json({ message: "Edit request sent to admin.", report });
+  } catch(err) { next(err); }
+});
+
+/* POST /api/reports/:reportId/approve-edit — Admin approves edit */
+router.post("/:reportId/approve-edit", authorize("admin"), async (req, res, next) => {
+  try {
+    const { rows:[report] } = await query(
+      `UPDATE reports SET edit_approved=true, edit_approved_by=$1,
+       edit_approved_at=NOW(), edit_requested=false, updated_at=NOW()
+       WHERE id=$2 RETURNING *`,
+      [req.user.id, req.params.reportId]);
+    if (!report) return res.status(404).json({ error: "Report not found" });
+    res.json({ message: "Edit approved. Technician can now modify results.", report });
+  } catch(err) { next(err); }
+});
+
+/* GET /api/reports/sample/:sampleId/submitted — Check submission status */
+router.get("/sample/:sampleId/submitted", authorize("technician","admin","doctor"), async (req, res, next) => {
+  try {
+    const { rows } = await query(
+      `SELECT r.id, r.report_no, r.is_signed, r.edit_requested, r.edit_approved,
+              r.edit_reason, r.edit_approved_at, tc.name test_name,
+              u.name tech_name
+       FROM reports r
+       JOIN test_catalogue tc ON tc.id=r.test_id
+       LEFT JOIN users u ON u.id=r.technician_id
+       WHERE r.sample_id=$1 ORDER BY r.created_at`,
+      [req.params.sampleId]);
+    for (const rpt of rows) {
+      const { rows: results } = await query(
+        "SELECT * FROM report_results WHERE report_id=$1 ORDER BY created_at", [rpt.id]);
+      rpt.results = results;
+    }
+    res.json({ reports: rows, submitted: rows.length > 0 });
+  } catch(err) { next(err); }
+});
+
 module.exports = router;

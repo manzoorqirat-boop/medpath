@@ -268,9 +268,14 @@ label{font-size:11px;color:var(--t2);font-weight:500;letter-spacing:.03em;displa
 @media print{
   .no-print{display:none!important;}.report-actions{display:none!important;}
   .sidebar,.bottom-nav,.mob-topbar{display:none!important;}
-  .report-viewer{position:static;overflow:visible;}body{background:#fff!important;}
+  .report-viewer{position:static;overflow:visible;}
+  body{background:#fff!important;font-size:12px;}
   .report-body{padding:0;max-width:100%;}
   .report-header-bar{-webkit-print-color-adjust:exact;print-color-adjust:exact;}
+  .report-table th,.report-table td{padding:6px 8px;font-size:11px;}
+  .report-info-grid{grid-template-columns:1fr 1fr;}
+  .card,.modal-bg{box-shadow:none!important;}
+  @page{size:A4;margin:15mm;}
 }
 /* SESSION TIMEOUT WARNING */
 .session-warning{position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,.6);z-index:9999;display:flex;align-items:center;justify-content:center;}
@@ -579,7 +584,7 @@ function ReportViewer({reportId,onClose,showSendActions}) {
   },[reportId]);
   async function doEmail(){setMsg("Sending...");const r=await api("POST","/api/reports/"+reportId+"/send-email",{});setMsg(r.message||r.error||"");}
   async function doWA(){const r=await api("GET","/api/reports/"+reportId+"/whatsapp-link");if(r.link)window.open(r.link,"_blank");else setMsg(r.error||"Failed");}
-  function doPDF(){window.open(API+"/api/reports/"+reportId+"/pdf","_blank");}
+  function doPDF(){window.open(API+"/api/reports/"+reportId+"/pdf?token="+encodeURIComponent(TOKEN),"_blank");}
   if(loading)return h("div",{className:"report-viewer"},h("div",{style:{padding:40}},h(Spinner)));
   if(!data)return h("div",{className:"report-viewer"},h("div",{className:"report-actions"},h("button",{onClick:onClose,className:"btn sm"},"← Back")),h("div",{style:{padding:40,color:"var(--danger)",textAlign:"center"}},"Report not found"));
   const report=data.report;

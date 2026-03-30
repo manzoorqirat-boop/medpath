@@ -63,7 +63,13 @@ router.get("/:id", async function(req, res, next) {
               'range_female_min', tp.range_female_min, 'range_female_max', tp.range_female_max,
               'display_order', tp.display_order
             ) ORDER BY tp.display_order
-          ) FILTER(WHERE tp.id IS NOT NULL), '[]'::json
+          ) FILTER(WHERE tp.id IS NOT NULL
+            -- Only show selected params if patient chose specific ones
+            AND (
+              NOT EXISTS (SELECT 1 FROM sample_test_params stp WHERE stp.sample_id=$1 AND stp.test_id=tc.id)
+              OR tp.id IN (SELECT param_id FROM sample_test_params WHERE sample_id=$1 AND test_id=tc.id)
+            )
+          ), '[]'::json
         ) AS parameters
        FROM sample_tests st
        JOIN test_catalogue tc ON tc.id = st.test_id

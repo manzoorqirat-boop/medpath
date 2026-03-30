@@ -180,8 +180,9 @@ router.get("/:reportId/full", async (req, res, next) => {
       WHERE r.id=$1`,[req.params.reportId]);
     if (!report) return res.status(404).json({ error:"Report not found" });
     const { rows: results } = await query(
-      "SELECT * FROM report_results WHERE report_id=$1 ORDER BY created_at",[req.params.reportId]);
-    res.json({ report: { ...report, results } });
+      "SELECT * FROM report_results WHERE report_id=$1 AND value IS NOT NULL AND value<>'' ORDER BY created_at",
+      [req.params.reportId]);
+    res.json({ report, results });
   } catch (err) { next(err); }
 });
 
@@ -274,7 +275,9 @@ router.get("/:reportId/pdf", async (req, res, next) => {
   try {
     let PDFDocument;
     try { PDFDocument = require("pdfkit"); }
-    catch (e) { return res.status(503).json({ error:"pdfkit not installed. Run: npm install pdfkit" }); }
+    catch (e) { 
+      return res.status(503).send("PDF generation unavailable. pdfkit not installed.");
+    }
 
     const { rows: [rpt] } = await query(`
       SELECT r.*,tc.name test_name,tc.code,
@@ -295,7 +298,8 @@ router.get("/:reportId/pdf", async (req, res, next) => {
     if (!rpt) return res.status(404).json({ error:"Report not found" });
 
     const { rows: results } = await query(
-      "SELECT * FROM report_results WHERE report_id=$1 ORDER BY created_at",[req.params.reportId]);
+      "SELECT * FROM report_results WHERE report_id=$1 AND value IS NOT NULL AND value<>'' ORDER BY created_at",
+      [req.params.reportId]);
 
     const doc = new PDFDocument({ margin:50, size:"A4" });
     res.setHeader("Content-Type","application/pdf");

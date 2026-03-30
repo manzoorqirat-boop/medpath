@@ -1,0 +1,7 @@
+-- Add edit request tracking to reports
+ALTER TABLE reports ADD COLUMN IF NOT EXISTS edit_requested BOOLEAN NOT NULL DEFAULT false;
+ALTER TABLE reports ADD COLUMN IF NOT EXISTS edit_requested_at TIMESTAMPTZ;
+ALTER TABLE reports ADD COLUMN IF NOT EXISTS edit_approved BOOLEAN NOT NULL DEFAULT false;
+ALTER TABLE reports ADD COLUMN IF NOT EXISTS edit_approved_by UUID REFERENCES users(id);
+ALTER TABLE reports ADD COLUMN IF NOT EXISTS edit_approved_at TIMESTAMPTZ;
+ALTER TABLE reports ADD COLUMN IF NOT EXISTS edit_reason TEXT;

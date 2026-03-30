@@ -95,176 +95,117 @@ function PatientApp({user,onLogout}) {
 
   function Tests() {
     const [search,setSearch]=useState("");
-    const [selected,setSelected]=useState({}); // {paramId: {testId, testName, paramName, price, unit}}
-    const [msg,setMsg]=useState("");
-    const [booking,setBooking]=useState(false);
 
-    const filtered=tests.filter(t=>
-      !search ||
-      t.name.toLowerCase().includes(search.toLowerCase()) ||
-      t.category.toLowerCase().includes(search.toLowerCase()) ||
-      (t.parameters||[]).some(p=>p.param_name.toLowerCase().includes(search.toLowerCase()))
-    );
+    const getSelection=testId=>paramSelections[testId]||{mode:"full",selectedParamIds:[]};
+    const inCart=id=>cart.find(c=>c.id===id);
 
-    function isParamSelected(paramId){ return !!selected[paramId]; }
-    function isAllSelected(test){
-      const ps=(test.parameters||[]);
-      return ps.length>0 && ps.every(p=>selected[p.id]);
+    function getCartPrice(t) {
+      const sel=getSelection(t.id);
+      if(sel.mode==="full"||!sel.selectedParamIds.length) return Number(t.price);
+      const params=(t.parameters||[]).filter(p=>sel.selectedParamIds.includes(p.id));
+      const paramTotal=params.reduce((s,p)=>s+Number(p.price||0),0);
+      return paramTotal>0?paramTotal:Number(t.price);
     }
-    function isAnySelected(test){
-      return (test.parameters||[]).some(p=>selected[p.id]);
+    function toggleCart(t) {
+      if(inCart(t.id)){setCart(prev=>prev.filter(c=>c.id!==t.id));}
+      else{
+        const sel=getSelection(t.id);
+        const price=getCartPrice(t);
+        setCart(prev=>[...prev,{...t,price,_booking:{test_id:t.id,mode:sel.mode,selected_param_ids:sel.selectedParamIds}}]);
+      }
     }
-
-    function toggleParam(test, param){
-      setSelected(prev=>{
-        const n={...prev};
-        if(n[param.id]) delete n[param.id];
-        else n[param.id]={testId:test.id,testName:test.name,category:test.category,
-          paramName:param.param_name,price:Number(param.price)||0,unit:param.unit||"",
-          range_text:param.range_text||"",
-          range_male_min:param.range_male_min, range_male_max:param.range_male_max,
-          range_female_min:param.range_female_min, range_female_max:param.range_female_max};
-        return n;
+    function toggleParam(testId,paramId){
+      setParamSelections(prev=>{
+        const cur=prev[testId]||{mode:"params",selectedParamIds:[]};
+        const ids=cur.selectedParamIds.includes(paramId)?cur.selectedParamIds.filter(i=>i!==paramId):[...cur.selectedParamIds,paramId];
+        return {...prev,[testId]:{mode:ids.length?"params":"full",selectedParamIds:ids}};
       });
+      setCart(prev=>prev.filter(c=>c.id!==testId));
+    }
+    function selectAll(t){
+      setParamSelections(prev=>({...prev,[t.id]:{mode:"full",selectedParamIds:[]}}));
+      setCart(prev=>prev.filter(c=>c.id!==t.id));
     }
 
-    function selectAll(test){
-      setSelected(prev=>{
-        const n={...prev};
-        const all=isAllSelected(test);
-        (test.parameters||[]).forEach(p=>{
-          if(all) delete n[p.id];
-          else n[p.id]={testId:test.id,testName:test.name,category:test.category,
-            paramName:p.param_name,price:Number(p.price)||0,unit:p.unit||"",
-            range_text:p.range_text||"",
-            range_male_min:p.range_male_min, range_male_max:p.range_male_max,
-            range_female_min:p.range_female_min, range_female_max:p.range_female_max};
-        });
-        return n;
-      });
-    }
+    const cartTotal=cart.reduce((s,t)=>s+Number(t.price),0);
+    const filtered=tests.filter(t=>t.name.toLowerCase().includes(search.toLowerCase())||t.category.toLowerCase().includes(search.toLowerCase()));
 
-    function selectAllTests(){
-      const allParams={};
-      filtered.forEach(test=>{
-        (test.parameters||[]).forEach(p=>{
-          allParams[p.id]={testId:test.id,testName:test.name,category:test.category,
-            paramName:p.param_name,price:Number(p.price)||0,unit:p.unit||"",
-            range_text:p.range_text||""};
-        });
-      });
-      setSelected(allParams);
-    }
-
-    // Group selected by test
-    const selectedByTest={};
-    Object.entries(selected).forEach(([pid,info])=>{
-      if(!selectedByTest[info.testId]) selectedByTest[info.testId]={testName:info.testName,params:[],paramIds:[]};
-      selectedByTest[info.testId].params.push({id:pid,...info});
-      selectedByTest[info.testId].paramIds.push(pid);
-    });
-
-    const totalSelected=Object.keys(selected).length;
-    const totalPrice=Object.values(selected).reduce((s,p)=>s+p.price,0);
-
-    async function bookNow(){
-      if(!totalSelected){setMsg("Select at least one parameter.");return;}
-      if(!user.patientId){alert("Patient ID not found. Contact reception.");return;}
-      setBooking(true);setMsg("");
-      // Build bookings - one per test with selected param IDs
-      const bookings=Object.values(selectedByTest).map(t=>({
-        test_id:t.params[0].testId,
-        mode:"params",
-        selected_param_ids:t.paramIds
-      }));
+    async function bookTests() {
+      if(!cart.length)return;
+      if(!user.patientId){alert("Patient ID not found. Please contact reception.");return;}
+      const bookings=cart.map(t=>t._booking||{test_id:t.id,mode:"full",selected_param_ids:[]});
       const data=await api("POST","/api/samples",{patient_id:user.patientId,bookings,priority:"Normal",collection_type:"Walk-in"});
-      setBooking(false);
-      if(data.sample){
-        setSamples(prev=>[data.sample,...prev]);
-        setSelected({});
-        api("GET","/api/billing").then(d=>{if(d.invoices)setBills(d.invoices);});
-        setMsg("✅ Booked! Sample: "+data.sample.sample_no);
-        setTimeout(()=>setActive("dashboard"),2000);
-      } else setMsg("Error: "+(data.error||"Booking failed"));
+      if(data.sample){setSamples(prev=>[data.sample,...prev]);setCart([]);alert("Tests booked! Sample: "+data.sample.sample_no);}
+      else alert("Error: "+(data.error||"Booking failed"));
     }
 
     return h("div",{className:"fade-in"},
       h("div",{className:"page-header"},
-        h("div",{style:{display:"flex",justifyContent:"space-between",alignItems:"flex-start",flexWrap:"wrap",gap:10}},
-          h("div",null,
-            h("div",{className:"page-title"},"Book Tests"),
-            h("div",{className:"page-sub"},"select parameters to book")
-          ),
-          totalSelected>0&&h("div",{style:{textAlign:"right"}},
-            h("div",{style:{fontSize:12,color:"var(--t2)",marginBottom:4}},totalSelected+" params selected"),
-            h("div",{style:{fontFamily:"var(--serif)",fontSize:20,color:"var(--p)",marginBottom:8}},"Rs."+totalPrice.toFixed(0)),
-            h("button",{onClick:bookNow,disabled:booking,className:"btn primary",style:{width:"auto",padding:"9px 22px"}},
-              booking?"Booking...":"Book Now →")
-          )
-        )
+        h("div",{className:"page-title"},"Book Tests"),
+        h("div",{className:"page-sub"},"select full test or individual parameters")
       ),
-      msg&&h("div",{className:"alert "+(msg.includes("Error")?"alert-err":"alert-ok")},msg),
-      h("div",{style:{display:"flex",gap:10,marginBottom:14,flexWrap:"wrap"}},
-        h("div",{className:"search-wrap",style:{flex:1,marginBottom:0}},
-          h("span",{className:"search-icon"},"🔍"),
-          h("input",{value:search,onChange:e=>setSearch(e.target.value),placeholder:"Search tests or parameters..."})
+      cart.length>0&&h("div",{className:"cart-bar"},
+        h("div",null,
+          h("div",{style:{fontSize:11,opacity:.7,fontFamily:"var(--mono)",letterSpacing:".04em"}},cart.length+" TEST(S) IN CART"),
+          h("div",{style:{fontFamily:"var(--serif)",fontSize:20}},"Rs."+cartTotal.toFixed(0))
         ),
-        h("button",{onClick:selectAllTests,className:"btn sm",style:{whiteSpace:"nowrap"}},"Select All"),
-        totalSelected>0&&h("button",{onClick:()=>setSelected({}),className:"btn sm danger-sm",style:{whiteSpace:"nowrap"}},"Clear All")
+        h("button",{onClick:bookTests,className:"btn",style:{background:"#fff",color:"var(--p)",fontWeight:600,padding:"8px 18px",flexShrink:0}},"Book Now ->")
+      ),
+      h("div",{className:"search-wrap"},
+        h("span",{className:"search-icon"},"🔍"),
+        h("input",{value:search,onChange:e=>setSearch(e.target.value),placeholder:"Search tests..."})
       ),
       tests.length===0&&h(Spinner),
-      h("div",{className:"card",style:{padding:0,overflow:"visible"}},
-        h("div",{className:"table-wrap"},
-          h("table",{className:"glass-table"},
-            h("thead",null,h("tr",null,
-              h("th",null,"Test"),
-              h("th",null,"Parameter"),
-              h("th",null,"Unit"),
-              h("th",null,"Reference Range"),
-              h("th",null,"Price"),
-              h("th",null,h("span",{style:{fontSize:10}},"SELECT"))
-            )),
-            h("tbody",null,
-              filtered.filter(t=>(t.parameters||[]).length>0).map(test=>{
-                const params=test.parameters||[];
-                const allSel=isAllSelected(test);
-                const anySel=isAnySelected(test);
-                return params.map((p,pi)=>h("tr",{key:p.id,
-                  style:{background:isParamSelected(p.id)?"rgba(10,92,71,0.04)":"transparent",
-                    borderLeft:isParamSelected(p.id)?"3px solid var(--p)":"3px solid transparent"}},
-                  // Test name only on first row
-                  pi===0&&h("td",{rowSpan:params.length,style:{verticalAlign:"top",paddingTop:12,borderRight:"1px solid var(--b2)"}},
-                    h("div",{style:{fontWeight:600,fontSize:13,color:"var(--t1)"}},test.name),
-                    h("div",{style:{fontSize:9,color:"var(--p-mid)",fontFamily:"var(--mono)",textTransform:"uppercase",marginBottom:4}},test.category),
-                    test.fasting_required&&h("div",{style:{fontSize:9,color:"var(--warn)",fontFamily:"var(--mono)"}},"Fasting"),
-                    h("button",{
-                      onClick:()=>selectAll(test),
-                      className:"btn sm",
-                      style:{fontSize:10,marginTop:6,width:"100%",
-                        background:allSel?"var(--p)":"transparent",
-                        color:allSel?"#fff":"var(--t2)",
-                        border:"1px solid "+(allSel?"var(--p)":"var(--b1)")}
-                    },allSel?"✓ All":"Select All")
+      h("div",{style:{display:"flex",flexDirection:"column",gap:10}},
+        filtered.map(t=>{
+          const sel=getSelection(t.id);
+          const inC=inCart(t.id);
+          const hasParams=(t.parameters||[]).length>0;
+          const isExp=expanded===t.id;
+          const cartPrice=getCartPrice(t);
+          const selectedCount=sel.selectedParamIds.length;
+          return h("div",{key:t.id,className:"card",style:{padding:"14px 16px",border:inC?"2px solid var(--p)":"1px solid var(--b2)"}},
+            h("div",{style:{display:"flex",justifyContent:"space-between",alignItems:"center",flexWrap:"wrap",gap:8}},
+              h("div",{style:{flex:1}},
+                h("div",{style:{fontSize:9.5,fontWeight:600,color:"var(--p-mid)",textTransform:"uppercase",letterSpacing:".08em",fontFamily:"var(--mono)",marginBottom:2}},t.category),
+                h("div",{style:{fontWeight:600,fontSize:14,color:"var(--t1)",marginBottom:2}},t.name),
+                t.fasting_required&&h("div",{style:{fontSize:10,color:"var(--warn)",fontFamily:"var(--mono)"}},"Fasting Required"),
+                h("div",{style:{display:"flex",gap:10,alignItems:"center",marginTop:4,flexWrap:"wrap"}},
+                  h("div",{style:{fontFamily:"var(--serif)",fontSize:18}},
+                    sel.mode==="params"&&selectedCount>0?"Rs."+cartPrice.toFixed(0)+" ("+selectedCount+" params)":"Rs."+t.price
                   ),
-                  h("td",{style:{fontWeight:isParamSelected(p.id)?600:400,color:isParamSelected(p.id)?"var(--p)":"var(--t1)"}},p.param_name),
-                  h("td",{style:{fontFamily:"var(--mono)",fontSize:11,color:"var(--t3)"}},p.unit||"—"),
-                  h("td",{style:{fontFamily:"var(--mono)",fontSize:11,color:"var(--t2)"}},p.range_text||"—"),
-                  h("td",{style:{fontFamily:"var(--serif)",fontSize:13,color:p.price>0?"var(--ok)":"var(--t3)"}},
-                    p.price>0?"Rs."+p.price:"—"),
-                  h("td",{style:{textAlign:"center"}},
-                    h("input",{type:"checkbox",checked:isParamSelected(p.id),
-                      onChange:()=>toggleParam(test,p),
-                      style:{width:16,height:16,cursor:"pointer",accentColor:"var(--p)"}})
-                  )
-                ));
-              })
+                  hasParams&&h("button",{onClick:e=>{e.stopPropagation();setExpanded(isExp?null:t.id);},className:"btn sm",style:{fontSize:11,padding:"3px 10px"}},isExp?"Hide":"Select Params")
+                )
+              ),
+              h("div",{onClick:e=>{e.stopPropagation();toggleCart(t);},style:{width:36,height:36,borderRadius:"50%",background:inC?"var(--p)":"var(--surface2)",border:"2px solid "+(inC?"var(--p)":"var(--b1)"),display:"flex",alignItems:"center",justifyContent:"center",color:inC?"#fff":"var(--t3)",fontSize:18,fontWeight:700,cursor:"pointer",flexShrink:0}},inC?"v":"+")
+            ),
+            isExp&&hasParams&&h("div",{style:{marginTop:12,paddingTop:12,borderTop:"1px solid var(--b2)"}},
+              h("div",{style:{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8}},
+                h("div",{style:{fontSize:11,fontWeight:600,color:"var(--t3)",fontFamily:"var(--mono)",textTransform:"uppercase"}},"Choose Parameters"),
+                h("button",{onClick:e=>{e.stopPropagation();selectAll(t);},className:"btn sm",style:{fontSize:11}},sel.mode==="full"&&!selectedCount?"Full Test":"Reset to Full")
+              ),
+              h("div",{style:{display:"grid",gridTemplateColumns:"1fr 1fr",gap:6}},
+                (t.parameters||[]).map(p=>{
+                  const isSel=sel.selectedParamIds.includes(p.id);
+                  return h("div",{key:p.id,onClick:e=>{e.stopPropagation();toggleParam(t.id,p.id);},
+                    style:{padding:"8px 10px",borderRadius:"var(--r-md)",cursor:"pointer",
+                      border:"1.5px solid "+(isSel?"var(--p)":"var(--b2)"),
+                      background:isSel?"var(--p-light)":"var(--surface)"}},
+                    h("div",{style:{fontSize:12,fontWeight:500,color:isSel?"var(--p)":"var(--t1)"}},p.param_name),
+                    p.unit&&h("div",{style:{fontSize:10,color:"var(--t3)",fontFamily:"var(--mono)"}},p.unit),
+                    p.price>0&&h("div",{style:{fontSize:11,color:"var(--ok)"}},"+Rs."+p.price)
+                  );
+                })
+              ),
+              selectedCount>0&&h("div",{style:{marginTop:8,padding:"6px 10px",background:"var(--p-light)",borderRadius:"var(--r-sm)",fontSize:11,color:"var(--p)",fontFamily:"var(--mono)"}},
+                selectedCount+" selected - Rs."+cartPrice.toFixed(0)
+              )
             )
-          )
-        )
+          );
+        })
       )
     );
   }
-
   function Reports() {
     const [myReports,setMyReports]=useState([]);
     const [viewId,setViewId]=useState(null);

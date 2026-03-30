@@ -568,14 +568,22 @@ function ReportViewer({reportId,onClose,showSendActions}) {
   const [loading,setLoading]=useState(true);
   const [msg,setMsg]=useState("");
   useEffect(()=>{
-    api("GET","/api/reports/"+reportId+"/full").then(d=>{if(d.report)setData(d);setLoading(false);});
+    api("GET","/api/reports/"+reportId+"/full").then(d=>{
+      if(d.report){
+        // Ensure results always an array
+        if(!d.results)d.results=d.report.results||[];
+        setData(d);
+      }
+      setLoading(false);
+    });
   },[reportId]);
   async function doEmail(){setMsg("Sending...");const r=await api("POST","/api/reports/"+reportId+"/send-email",{});setMsg(r.message||r.error||"");}
   async function doWA(){const r=await api("GET","/api/reports/"+reportId+"/whatsapp-link");if(r.link)window.open(r.link,"_blank");else setMsg(r.error||"Failed");}
   function doPDF(){window.open(API+"/api/reports/"+reportId+"/pdf","_blank");}
   if(loading)return h("div",{className:"report-viewer"},h("div",{style:{padding:40}},h(Spinner)));
   if(!data)return h("div",{className:"report-viewer"},h("div",{className:"report-actions"},h("button",{onClick:onClose,className:"btn sm"},"← Back")),h("div",{style:{padding:40,color:"var(--danger)",textAlign:"center"}},"Report not found"));
-  const {report,results=[]}=data;
+  const report=data.report;
+  const results=data.results||data.report?.results||[];
   const age=report.date_of_birth?new Date().getFullYear()-new Date(report.date_of_birth).getFullYear()+" Yrs":"—";
   const fc=f=>"flag-"+(f||"Normal");
   return h("div",{className:"report-viewer"},
@@ -616,7 +624,10 @@ function ReportViewer({reportId,onClose,showSendActions}) {
           )
         ),
         h("div",{style:{fontFamily:"var(--mono)",fontSize:10,fontWeight:700,color:"var(--p)",letterSpacing:".06em",marginBottom:8}},"TEST: "+report.test_name+" ("+report.code+")"),
-        results.length===0&&h("p",{style:{color:"var(--t3)",fontSize:13}},"No results recorded yet."),
+        results.length===0&&h("div",{style:{background:"var(--surface2)",borderRadius:"var(--r-md)",padding:"14px 16px",textAlign:"center"}},
+          h("div",{style:{fontSize:13,color:"var(--t3)",marginBottom:6}},"No results recorded yet."),
+          h("div",{style:{fontSize:11,color:"var(--t3)",fontFamily:"var(--mono)"}},"Results will appear after technician submits.")
+        ),
         results.length>0&&h("div",{className:"table-wrap"},
           h("table",{className:"report-table"},
             h("thead",null,h("tr",null,["Test","Parameter","Result","Unit","Ref Range","Flag"].map(c=>h("th",{key:c},c)))),

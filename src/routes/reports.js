@@ -48,12 +48,14 @@ router.get("/sample/:sampleId", async (req, res, next) => {
 router.get("/all", authorize("admin","doctor"), async (req, res, next) => {
   try {
     const { rows } = await query(`
-      SELECT r.id,r.report_no,r.is_signed,r.signed_at,r.created_at,r.sent_email,r.sent_whatsapp,
-             r.tech_notes,r.pathologist_note,r.technician_id,
-             tc.name test_name,tc.code,tc.category,s.sample_no,
+      SELECT r.id,r.report_no,r.is_signed,r.signed_at,r.created_at,
+             r.tech_notes,r.pathologist_note,
+             tc.name test_name,tc.code,tc.category,
+             s.sample_no,s.id sample_id,
              u.name patient_name,u.phone patient_phone,u.email patient_email,
              p.patient_no,p.date_of_birth,p.gender,p.blood_group,
-             pu.name pathologist_name,tu.name tech_name
+             pu.name pathologist_name,
+             tu.name tech_name
       FROM reports r
       JOIN test_catalogue tc ON tc.id=r.test_id
       JOIN samples s ON s.id=r.sample_id
@@ -62,10 +64,10 @@ router.get("/all", authorize("admin","doctor"), async (req, res, next) => {
       LEFT JOIN users pu ON pu.id=r.pathologist_id
       LEFT JOIN users tu ON tu.id=r.technician_id
       ORDER BY r.created_at DESC LIMIT 100`);
-    // Attach results to each report
     for (const rpt of rows) {
       const { rows: results } = await query(
-        "SELECT * FROM report_results WHERE report_id=$1 ORDER BY created_at", [rpt.id]);
+        "SELECT * FROM report_results WHERE report_id=$1 ORDER BY created_at",
+        [rpt.id]);
       rpt.results = results;
     }
     res.json({ reports: rows });
@@ -85,30 +87,15 @@ router.post("/sample/:sampleId/test/:testId", authorize("technician","admin"), a
       return res.status(404).json({ error: "Sample not found" });
     }
     
-    // ✅ FIXED: Verify sample_tests relationship exists
-    // This means the test was actually booked for this sample
-    const { rows: [st] } = await query(
-      "SELECT * FROM sample_tests WHERE sample_id=$1 AND test_id=$2",
-      [req.params.sampleId, req.params.testId]);
-    if (!st) {
-      return res.status(404).json({ 
-        error: "Test not found in this sample. Sample may not be linked to this test. Please ensure the test was booked during sample creation." 
-      });
-    }
-    
-    // ✅ FIXED: Verify test has parameters configured
-    const { rows: params } = await query(
-      "SELECT * FROM test_parameters WHERE test_id=$1 ORDER BY display_order",
-      [req.params.testId]);
-    if (!params.length) {
-      return res.status(400).json({
-        error: "Test has no parameters configured. Add parameters in the Tests catalogue first."
-      });
-    }
-    
-    // ✅ FIXED: Verify at least one result is provided
-    if (!results.length) {
-      return res.status(400).json({ error: "No results provided" });
+    // Verify sample exists
+    const { rows: [sample] } = await query(
+      "SELECT id FROM samples WHERE id=$1", [req.params.sampleId]);
+    if (!sample) return res.status(404).json({ error: "Sample not found" });
+
+    // Check at least one result has a value
+    const filledResults = results.filter(r => r.value !== undefined && r.value !== null);
+    if (!filledResults.length) {
+      return res.status(400).json({ error: "Enter at least one value" });
     }
     
     let report;

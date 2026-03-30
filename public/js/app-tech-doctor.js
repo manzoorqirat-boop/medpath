@@ -365,9 +365,18 @@ function DoctorApp({user,onLogout}) {
             h("tbody",null,reports.map(r=>h("tr",{key:r.id},
               h("td",{style:{fontFamily:"var(--mono)",fontWeight:700,color:"var(--p)",fontSize:12}},r.report_no||"—"),
               h("td",null,h("div",{style:{fontWeight:500,fontSize:13}},r.patient_name),h("div",{style:{fontSize:10,color:"var(--t3)",fontFamily:"var(--mono)"}},r.patient_no)),
-              h("td",{style:{fontSize:12,color:"var(--t2)"}},r.test_name),
+              h("td",null,
+                h("div",{style:{fontSize:12,fontWeight:500}},r.test_name),
+                r.results&&r.results.length>0&&h("div",{style:{fontSize:10,color:"var(--t3)",fontFamily:"var(--mono)",marginTop:2}},
+                  r.results.filter(x=>x.value).length+"/"+r.results.length+" params recorded"
+                )
+              ),
               h("td",{style:{fontSize:11,color:"var(--t3)",fontFamily:"var(--mono)"}},new Date(r.created_at).toLocaleDateString("en-IN")),
-              h("td",null,r.is_signed?h(Badge,{label:"Verified",type:"ok"}):h(Badge,{label:"Pending",type:"warn"})),
+              h("td",null,
+                r.is_signed?h(Badge,{label:"Verified",type:"ok"}):
+                r.results&&r.results.filter(x=>x.value).length>0?h(Badge,{label:"Ready to Sign",type:"warn"}):
+                h(Badge,{label:"No Results",type:"gray"})
+              ),
               h("td",null,h("div",{style:{display:"flex",gap:4,flexWrap:"wrap"}},
                 h("button",{onClick:()=>setViewId(r.id),className:"btn sm",style:{background:"var(--p)",color:"#fff",border:"none",fontSize:11}},"View"),
                 !r.is_signed&&h("button",{onClick:()=>{setSignId(r.id);setNote("");},className:"btn sm",style:{background:"var(--ok)",color:"#fff",border:"none",fontSize:11}},"Sign"),

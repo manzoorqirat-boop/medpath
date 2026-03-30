@@ -67,77 +67,48 @@ function TechApp({user,onLogout}) {
     async function loadSample(s) {
       setSelected(s);setParams([]);setInputs({});setTechNotes("");setSavedMsg("Loading...");
       updateStatus(s.id,"Processing").catch(function(){});
-
-      // Get full catalogue with parameters (confirmed working from /api/tests)
-      const td=await api("GET","/api/tests");
-      const allCatalog=(td.tests)||[];
-
-      // Get sample to find linked test IDs
-      const sd=await api("GET","/api/samples/"+s.id);
-      const sampleData=sd.sample||{};
-
-      // Get test IDs from sample - try both test_ids array and tests array
-      const rawIds=[
-        ...((sampleData.test_ids)||[]),
-        ...((sampleData.tests)||[]).map(t=>String(t.id))
-      ];
-      const testIds=[...new Set(rawIds.map(id=>String(id).trim()))];
-
-      // If no test_ids linked, show all catalogue tests as fallback for debugging
-      if(!testIds.length){
-        setSavedMsg("No tests linked to this sample. Please book a new test after today's update.");
-        return;
-      }
-
-      // Match catalogue tests to sample's test_ids (string comparison)
-      const matchedTests=allCatalog.filter(t=>testIds.includes(String(t.id).trim()));
-
-      if(!matchedTests.length){
-        setSavedMsg("Debug: Sample has test_ids ["+testIds.join(",")+"] but none matched catalogue. Contact admin.");
-        return;
-      }
-
-      // Filter to tests with parameters
-      const withParams=matchedTests.filter(t=>Array.isArray(t.parameters)&&t.parameters.length>0);
-
-      if(!withParams.length){
-        const names=matchedTests.map(t=>t.name).join(", ");
-        setSavedMsg("Tests linked: "+names+". But no parameters found in Admin > Tests > Params.");
-        return;
-      }
-
-      setParams(withParams);setSavedMsg("");
-      const ni={};
-      withParams.forEach(t=>t.parameters.forEach(p=>{
-        ni[p.id]={value:"",flag:"Normal",unit:p.unit||"",ref:p.range_text||"",param_name:p.param_name};
-      }));
-      setInputs(ni);
+      try {
+        const sd=await api("GET","/api/samples/"+s.id);
+        if(!sd.sample){setSavedMsg("Error loading sample.");return;}
+        const sampleTests=sd.sample.tests||[];
+        if(!sampleTests.length){setSavedMsg("No tests linked to this sample.");return;}
+        const withParams=sampleTests.filter(t=>Array.isArray(t.parameters)&&t.parameters.length>0);
+        if(!withParams.length){setSavedMsg("No parameters found. Add parameters in Admin > Tests.");return;}
+        setParams(withParams);setSavedMsg("");
+        const ni={};
+        withParams.forEach(t=>t.parameters.forEach(p=>{ni[p.id]={value:"",flag:"Normal"};}));
+        setInputs(ni);
+      } catch(err){setSavedMsg("Error: "+String(err));}
     }
-    function autoFlag(p,val){
-      if(!val||isNaN(val))return "Normal";
-      const v=parseFloat(val);
-      if(p.range_male_min!=null&&v<parseFloat(p.range_male_min))return "Low";
-      if(p.range_male_max!=null&&v>parseFloat(p.range_male_max))return "High";
-      return "Normal";
-    }
-    async function saveTest(test){
-      const results=test.parameters.map(p=>{
-        const inp=document.querySelector('[data-pid="'+p.id+'"]');
-        const val=inp?inp.value.trim():"";
-        const mn=inp?inp.getAttribute("data-min"):"";
-        const mx=inp?inp.getAttribute("data-max"):"";
-        const flag=!val?"Pending":(mn&&parseFloat(val)<parseFloat(mn))?"Low":(mx&&parseFloat(val)>parseFloat(mx))?"High":"Normal";
-        return {param_name:p.param_name,value:val,unit:p.unit||"",flag,ref_range:p.range_text||""};
-      });
-      const filled=results.filter(r=>r.value).length;
-      if(!filled){setSavedMsg("Enter at least one value.");return;}
-      setSaving(true);setSavedMsg("");
-      const d=await api("POST","/api/reports/sample/"+selected.id+"/test/"+test.id,{results,tech_notes:techNotes});
+
+    async function saveAll(){
+      // Read from DOM - uncontrolled inputs (no keyboard dismiss)
+      let anyError=false;let lastReport="";
+      setSaving(true);setSavedMsg("Saving...");
+      for(const test of params){
+        const results=test.parameters.map(p=>{
+          const inp=document.querySelector('[data-pid="'+p.id+'"]');
+          const val=inp?inp.value.trim():"";
+          const mn=p.range_male_min;const mx=p.range_male_max;
+          const flag=!val?"Pending":mn!=null&&parseFloat(val)<parseFloat(mn)?"Low":mx!=null&&parseFloat(val)>parseFloat(mx)?"High":"Normal";
+          return {param_name:p.param_name,value:val,unit:p.unit||"",flag,ref_range:p.range_text||""};
+        });
+        const filled=results.filter(r=>r.value).length;
+        if(!filled)continue;
+        const d=await api("POST","/api/reports/sample/"+selected.id+"/test/"+test.id,{results,tech_notes:techNotes});
+        if(d.report)lastReport=d.report.report_no;
+        else anyError=true;
+      }
       setSaving(false);
-      if(d.report){
+      if(lastReport){
         await updateStatus(selected.id,"Reported").catch(function(){});
-        setSavedMsg("✅ Saved! Report: "+d.report.report_no+" — Submitted for doctor review.");
-      } else setSavedMsg("Error: "+(d.error||"Unknown"));
+        setSavedMsg("✅ Results saved! Report: "+lastReport+" — Submitted for doctor review.");
+        api("GET","/api/samples?limit=50").then(d=>{
+          if(d.samples){setAllSamples(d.samples);setSamples(d.samples.filter(s=>s.status==="Collected"||s.status==="Processing"));}
+        });
+      } else {
+        setSavedMsg(anyError?"❌ Error saving. Check tests are linked to sample.":"Enter at least one value first.");
+      }
     }
 
     if(viewId)return h(ReportViewer,{reportId:viewId,onClose:()=>setViewId(null),showSendActions:false});
@@ -145,21 +116,17 @@ function TechApp({user,onLogout}) {
     if(!selected)return h("div",{className:"fade-in"},
       h("div",{className:"page-header"},
         h("div",{className:"page-title"},"Results Entry"),
-        h("div",{className:"page-sub"},"select sample to enter test values")
+        h("div",{className:"page-sub"},"select sample to enter values")
       ),
       h("div",{style:{display:"flex",justifyContent:"flex-end",marginBottom:10}},
         h("button",{onClick:async()=>{
           const d=await api("GET","/api/samples?limit=50");
           if(d.samples){setAllSamples(d.samples);setSamples(d.samples.filter(s=>s.status==="Collected"||s.status==="Processing"));}
-        },className:"btn sm"},"🔄 Refresh Queue")
+        },className:"btn sm"},"🔄 Refresh")
       ),
       queue.length===0&&h("div",{className:"card",style:{textAlign:"center",padding:40}},
         h("div",{style:{fontSize:44,marginBottom:8}},"✅"),
-        h("p",{style:{color:"var(--t2)",marginBottom:14}},"No pending samples. Tap Refresh if Admin just collected a sample."),
-        h("button",{onClick:async()=>{
-          const d=await api("GET","/api/samples?limit=50");
-          if(d.samples){setAllSamples(d.samples);setSamples(d.samples.filter(s=>s.status==="Collected"||s.status==="Processing"));}
-        },className:"btn primary",style:{width:"auto",padding:"9px 22px"}},"🔄 Refresh Queue")
+        h("p",{style:{color:"var(--t2)"}},"No pending samples.")
       ),
       queue.map(s=>h("div",{key:s.id,className:"card"},
         h("div",{style:{display:"flex",justifyContent:"space-between",alignItems:"center",flexWrap:"wrap",gap:10}},
@@ -168,7 +135,7 @@ function TechApp({user,onLogout}) {
             h("div",null,
               h("div",{style:{fontWeight:600,fontSize:14}},s.patient_name||"Patient"),
               h("div",{style:{fontFamily:"var(--mono)",fontSize:11,color:"var(--p)"}},s.sample_no),
-              s.priority==="Urgent"&&h(Badge,{label:"URGENT",type:"danger"})
+              h("div",{style:{fontSize:11,color:"var(--t3)"}},(s.test_codes||[]).join(", ")||"")
             )
           ),
           h("div",{style:{display:"flex",gap:8}},
@@ -180,44 +147,66 @@ function TechApp({user,onLogout}) {
     );
 
     return h("div",{className:"fade-in"},
-      h("div",{style:{display:"flex",alignItems:"center",gap:12,marginBottom:18}},
+      h("div",{style:{display:"flex",alignItems:"center",gap:12,marginBottom:14,flexWrap:"wrap"}},
         h("button",{onClick:()=>setSelected(null),className:"btn sm"},"← Back"),
-        h("div",null,
+        h("div",{style:{flex:1}},
           h("div",{className:"page-title"},selected.patient_name||"Patient"),
           h("div",{className:"page-sub"},selected.sample_no+" · enter results")
+        ),
+        params.length>0&&h("button",{onClick:saveAll,disabled:saving,className:"btn primary",style:{width:"auto",padding:"9px 20px"}},
+          saving?"Saving...":"Save & Submit ✓")
+      ),
+      savedMsg&&h("div",{className:"alert "+(savedMsg.startsWith("❌")?"alert-err":"alert-ok")},savedMsg),
+      params.length===0&&!savedMsg&&h("div",{className:"card",style:{textAlign:"center",padding:30}},h(Spinner)),
+      params.length>0&&h("div",{className:"card",style:{padding:0,overflow:"visible"}},
+        h("div",{className:"table-wrap"},
+          h("table",{className:"glass-table"},
+            h("thead",null,h("tr",null,
+              h("th",null,"Test"),
+              h("th",null,"Parameter"),
+              h("th",null,"Ref Range"),
+              h("th",null,"Value"),
+              h("th",null,"Unit"),
+              h("th",null,"Flag")
+            )),
+            h("tbody",null,
+              params.map(test=>(test.parameters||[]).map((p,pi)=>h("tr",{key:p.id,
+                style:{background:"transparent"}},
+                pi===0&&h("td",{rowSpan:(test.parameters||[]).length,
+                  style:{verticalAlign:"top",paddingTop:12,fontWeight:600,fontSize:12,
+                    color:"var(--p)",borderRight:"1px solid var(--b2)",minWidth:90}},
+                  h("div",null,test.name),
+                  h("div",{style:{fontSize:9,color:"var(--t3)",fontFamily:"var(--mono)",fontWeight:400,marginTop:2}},test.category)
+                ),
+                h("td",{style:{fontWeight:500,fontSize:13}},p.param_name),
+                h("td",{style:{fontSize:11,color:"var(--t3)",fontFamily:"var(--mono)"}},p.range_text||"—"),
+                h("td",null,
+                  h("input",{
+                    "data-pid":p.id,
+                    type:"tel",inputMode:"decimal",
+                    defaultValue:"",
+                    placeholder:"—",
+                    style:{textAlign:"center",fontWeight:600,width:"100%",fontSize:15,
+                      border:"1px solid var(--b1)",borderRadius:"var(--r-md)",
+                      padding:"8px 4px",background:"var(--surface)",minWidth:70}
+                  })
+                ),
+                h("td",{style:{fontFamily:"var(--mono)",fontSize:11,color:"var(--t3)",whiteSpace:"nowrap"}},p.unit||"—"),
+                h("td",{style:{fontFamily:"var(--mono)",fontSize:11,color:"var(--t3)"}},"auto")
+              )))
+            )
+          )
         )
       ),
-      savedMsg&&h("div",{className:"alert "+(savedMsg.includes("Error")||savedMsg.includes("Debug")||savedMsg.includes("No test")||savedMsg.includes("Sample has")?"alert-err":"alert-ok"),style:{wordBreak:"break-all"}},savedMsg),
-      params.length===0&&!savedMsg&&h("div",{className:"card",style:{textAlign:"center",padding:30}},
-        h("div",{style:{fontSize:36,marginBottom:8}},"⚗️"),
-        h("p",{style:{color:"var(--t3)",fontSize:13}},"No test parameters found. Add parameters in the Tests catalogue first."),
-        h("button",{onClick:()=>setSelected(null),className:"btn",style:{marginTop:12,width:"auto",padding:"8px 20px"}},"← Back")
-      ),
-      params.map(test=>h("div",{key:test.id,className:"card"},
-        h("div",{style:{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:14,flexWrap:"wrap",gap:10}},
-          h("div",null,
-            h("div",{style:{fontFamily:"var(--mono)",fontSize:10,color:"var(--p)",fontWeight:600,letterSpacing:".06em"}},test.category),
-            h("div",{style:{fontWeight:600,fontSize:15}},test.name)
-          ),
-          h("button",{onClick:()=>saveTest(test),disabled:saving,className:"btn sm teal",style:{color:"#fff"}},saving?"Saving...":"Save Results ✓")
-        ),
-        h("div",{style:{display:"grid",gridTemplateColumns:"2fr 1.5fr 1fr 1.2fr",gap:"0 12px",padding:"6px 8px",background:"var(--surface2)",borderRadius:"var(--r-sm)",marginBottom:6}},
-          ["Parameter","Value","Unit","Flag"].map(hdr=>h("div",{key:hdr,style:{fontSize:10,fontWeight:600,color:"var(--t3)",fontFamily:"var(--mono)",textTransform:"uppercase"}},hdr))
-        ),
-        test.parameters.map(p=>h("div",{key:p.id,className:"param-row"},
-          h("div",null,
-            h("div",{style:{fontWeight:500,fontSize:13}},p.param_name),
-            h("div",{style:{fontSize:10,color:"var(--t3)",fontFamily:"var(--mono)"}},p.range_text||"")
-          ),
-          h("input",{"data-pid":p.id,"data-min":p.range_male_min!=null?String(p.range_male_min):"","data-max":p.range_male_max!=null?String(p.range_male_max):"",type:"tel",inputMode:"decimal",defaultValue:"",placeholder:"—",style:{textAlign:"center",fontWeight:600,width:"100%",fontSize:15,border:"1px solid var(--b1)",borderRadius:"var(--r-md)",padding:"8px 4px"}}),
-          h("input",{value:p.unit||"",disabled:true,style:{textAlign:"center",fontSize:12,color:"var(--t3)",background:"var(--surface2)"}}),
-          h("span",{style:{fontSize:11,color:"var(--t3)",fontFamily:"var(--mono)",textAlign:"center",display:"block"}},"auto")
-        )),
-        h("div",{style:{marginTop:14}},
+      params.length>0&&h("div",{className:"card",style:{marginTop:0}},
+        h("div",{className:"form-group"},
           h("label",null,"Technician Notes"),
-          h("textarea",{value:techNotes,onChange:e=>setTechNotes(e.target.value),rows:2,placeholder:"Specimen quality, observations...",style:{resize:"vertical"}})
-        )
-      ))
+          h("textarea",{value:techNotes,onChange:e=>setTechNotes(e.target.value),rows:2,
+            placeholder:"Specimen quality, observations...",style:{resize:"vertical"}})
+        ),
+        h("button",{onClick:saveAll,disabled:saving,className:"btn primary"},
+          saving?"Saving...":"Save & Submit for Review ✓")
+      )
     );
   }
 

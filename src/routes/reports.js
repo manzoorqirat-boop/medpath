@@ -44,21 +44,30 @@ router.get("/sample/:sampleId", async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
-/* GET /api/reports/all — Admin/Doctor: all reports */
+/* GET /api/reports/all — Admin/Doctor: all reports with results */
 router.get("/all", authorize("admin","doctor"), async (req, res, next) => {
   try {
     const { rows } = await query(`
       SELECT r.id,r.report_no,r.is_signed,r.signed_at,r.created_at,r.sent_email,r.sent_whatsapp,
-             tc.name test_name,s.sample_no,
+             r.tech_notes,r.pathologist_note,r.technician_id,
+             tc.name test_name,tc.code,tc.category,s.sample_no,
              u.name patient_name,u.phone patient_phone,u.email patient_email,
-             p.patient_no,pu.name pathologist_name
+             p.patient_no,p.date_of_birth,p.gender,p.blood_group,
+             pu.name pathologist_name,tu.name tech_name
       FROM reports r
       JOIN test_catalogue tc ON tc.id=r.test_id
       JOIN samples s ON s.id=r.sample_id
       JOIN patients p ON p.id=s.patient_id
       JOIN users u ON u.id=p.user_id
       LEFT JOIN users pu ON pu.id=r.pathologist_id
+      LEFT JOIN users tu ON tu.id=r.technician_id
       ORDER BY r.created_at DESC LIMIT 100`);
+    // Attach results to each report
+    for (const rpt of rows) {
+      const { rows: results } = await query(
+        "SELECT * FROM report_results WHERE report_id=$1 ORDER BY created_at", [rpt.id]);
+      rpt.results = results;
+    }
     res.json({ reports: rows });
   } catch (err) { next(err); }
 });
@@ -98,9 +107,8 @@ router.post("/sample/:sampleId/test/:testId", authorize("technician","admin"), a
     }
     
     // ✅ FIXED: Verify at least one result is provided
-    const filledResults = results.filter(r => r.value);
-    if (!filledResults.length) {
-      return res.status(400).json({ error: "Enter at least one value" });
+    if (!results.length) {
+      return res.status(400).json({ error: "No results provided" });
     }
     
     let report;
@@ -116,11 +124,10 @@ router.post("/sample/:sampleId/test/:testId", authorize("technician","admin"), a
         [req.params.sampleId,req.params.testId,req.user.id,tech_notes||null,reportNo]);
       await client.query("DELETE FROM report_results WHERE report_id=$1",[rpt.id]);
       for (const r of results) {
-        // Save all results including empty ones (partial support)
         await client.query(`
           INSERT INTO report_results(report_id,param_name,value,unit,flag,ref_range)
           VALUES($1,$2,$3,$4,$5,$6)`,
-          [rpt.id,r.param_name,r.value||"",r.unit||"",r.flag||"Normal",r.ref_range||""]);
+          [rpt.id,r.param_name,r.value,r.unit||"",r.flag||"Normal",r.ref_range||""]);
       }
       await client.query(
         "UPDATE sample_tests SET status='Reported' WHERE sample_id=$1 AND test_id=$2",

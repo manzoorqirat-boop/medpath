@@ -270,8 +270,19 @@ router.get("/:reportId/whatsapp-link", authorize("admin","doctor","technician"),
   } catch (err) { next(err); }
 });
 
-/* GET /api/reports/:reportId/pdf — Stream PDF */
+/* GET /api/reports/:reportId/pdf — Stream PDF (public with token in query) */
 router.get("/:reportId/pdf", async (req, res, next) => {
+  // Allow token from query string for window.open PDF downloads
+  if (!req.user && req.query.token) {
+    try {
+      const jwt = require("jsonwebtoken");
+      const SECRET = process.env.JWT_SECRET || "change-me-in-production";
+      req.user = jwt.verify(req.query.token, SECRET);
+    } catch(e) {
+      return res.status(401).json({ error: "Invalid token" });
+    }
+  }
+  if (!req.user) return res.status(401).json({ error: "No token provided" });
   try {
     let PDFDocument;
     try { PDFDocument = require("pdfkit"); }

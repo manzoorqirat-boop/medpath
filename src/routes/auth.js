@@ -2,12 +2,11 @@ const jwt = require("jsonwebtoken");
 const SECRET = process.env.JWT_SECRET || "change-me-in-production";
 
 function authenticate(req, res, next) {
-  // Accept token from Authorization header OR query string (for window.open PDF)
   let token = null;
   const header = req.headers.authorization;
   if (header && header.startsWith("Bearer ")) {
     token = header.slice(7);
-  } else if (req.query.token) {
+  } else if (req.query && req.query.token) {
     token = req.query.token;
   }
   if (!token) {
@@ -16,7 +15,7 @@ function authenticate(req, res, next) {
   try {
     req.user = jwt.verify(token, SECRET);
     next();
-  } catch {
+  } catch (err) {
     return res.status(401).json({ error: "Invalid or expired token" });
   }
 }

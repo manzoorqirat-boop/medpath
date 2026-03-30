@@ -63,17 +63,15 @@ router.get("/:id", async function(req, res, next) {
               'range_female_min', tp.range_female_min, 'range_female_max', tp.range_female_max,
               'display_order', tp.display_order
             ) ORDER BY tp.display_order
-          ) FILTER(WHERE tp.id IS NOT NULL
-            -- Only show selected params if patient chose specific ones
-            AND (
-              NOT EXISTS (SELECT 1 FROM sample_test_params stp WHERE stp.sample_id=$1 AND stp.test_id=tc.id)
-              OR tp.id IN (SELECT param_id FROM sample_test_params WHERE sample_id=$1 AND test_id=tc.id)
-            )
-          ), '[]'::json
+          ) FILTER(WHERE tp.id IS NOT NULL), '[]'::json
         ) AS parameters
        FROM sample_tests st
        JOIN test_catalogue tc ON tc.id = st.test_id
        LEFT JOIN test_parameters tp ON tp.test_id = tc.id
+            AND (
+              NOT EXISTS (SELECT 1 FROM sample_test_params stp2 WHERE stp2.sample_id=st.sample_id AND stp2.test_id=tc.id)
+              OR tp.id IN (SELECT param_id FROM sample_test_params WHERE sample_id=st.sample_id AND test_id=tc.id)
+            )
        WHERE st.sample_id = $1
        GROUP BY tc.id, tc.name, tc.code, tc.category, tc.price, tc.turnaround_hrs,
                 tc.fasting_required, tc.description, tc.is_active, tc.created_at`,
@@ -132,11 +130,24 @@ router.post("/", authorize("admin","patient"), async function(req, res, next) {
       "INSERT INTO samples(sample_no,invoice_id,patient_id,collection_type,priority) VALUES($1,$2,$3,$4,$5) RETURNING *",
       [smpNo, invoice.rows[0].id, patient_id, collection_type, priority]);
 
-    // Link tests → sample
+    // Link tests → sample and save selected params
+    var bookingsMap = {};
+    if (req.body.bookings && req.body.bookings.length) {
+      req.body.bookings.forEach(function(b) { bookingsMap[b.test_id] = b; });
+    }
     for (var t2 of tests) {
       await query(
         "INSERT INTO sample_tests(sample_id,test_id) VALUES($1,$2) ON CONFLICT DO NOTHING",
         [sample.rows[0].id, t2.id]);
+      // Save selected parameters if patient chose specific ones
+      var booking = bookingsMap[t2.id];
+      if (booking && booking.selected_param_ids && booking.selected_param_ids.length > 0) {
+        for (var pid of booking.selected_param_ids) {
+          await query(
+            "INSERT INTO sample_test_params(sample_id,test_id,param_id) VALUES($1,$2,$3) ON CONFLICT DO NOTHING",
+            [sample.rows[0].id, t2.id, pid]);
+        }
+      }
     }
 
     await query(

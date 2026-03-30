@@ -201,11 +201,13 @@ function TechApp({user,onLogout}) {
                   h("td",{style:{fontSize:11,color:"var(--t3)",fontFamily:"var(--mono)"}},p.range_text||"—"),
                   h("td",null,
                     h("input",{
-                      type:"text",inputMode:"decimal",
+                      type:"number",
+                      step:"any",
                       value:inputs[p.id]?.value||"",
-                      onChange:e=>{const v=e.target.value;const flag=autoFlag(p,v);setInputs(prev=>({...prev,[p.id]:{...prev[p.id],value:v,flag}}));},
-                      placeholder:"—",
-                      style:{textAlign:"center",fontWeight:600,width:"100%",minWidth:80}
+                      onChange:e=>{const v=e.target.value;setInputs(prev=>({...prev,[p.id]:{...prev[p.id],value:v}}));},
+                      onBlur:e=>{const v=e.target.value;const flag=autoFlag(p,v);setInputs(prev=>({...prev,[p.id]:{...prev[p.id],value:v,flag}}));},
+                      placeholder:"",
+                      style:{textAlign:"center",fontWeight:600,width:"100%",minWidth:80,MozAppearance:"textfield"}
                     })
                   ),
                   h("td",{style:{fontFamily:"var(--mono)",fontSize:11,color:"var(--t3)"}},p.unit||"—"),
@@ -476,7 +478,7 @@ function DoctorApp({user,onLogout}) {
               h("div",{style:{display:"flex",gap:6,flexWrap:"wrap",justifyContent:"flex-end",marginTop:4}},
                 h("button",{onClick:()=>setViewId(r.id),className:"btn sm",style:{background:"var(--p)",color:"#fff",border:"none"}},"👁 View"),
                 !r.is_signed&&h("button",{onClick:()=>{setSignId(r.id);setNote("");},className:"btn sm",style:{background:"var(--ok)",color:"#fff",border:"none"}},"✓ Sign"),
-                h("button",{onClick:()=>window.open(API+"/api/reports/"+r.id+"/pdf","_blank"),className:"btn sm teal",style:{color:"#fff"}},"📄 PDF"),
+                h("button",{onClick:()=>window.open(API+"/api/reports/"+r.id+"/pdf?token="+encodeURIComponent(TOKEN),"_blank"),className:"btn sm teal",style:{color:"#fff"}},"📄 PDF"),
                 h("button",{onClick:()=>sendWA(r.id),className:"btn sm",style:{background:"#25D366",color:"#fff",border:"none"}},"💬 WA"),
                 h("button",{onClick:()=>sendMail(r.id),className:"btn sm",style:{background:"#1A73E8",color:"#fff",border:"none"}},"✉ Mail")
               )

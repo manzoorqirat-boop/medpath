@@ -63,31 +63,26 @@ function TechApp({user,onLogout}) {
 
   function Results() {
     const queue=samples.filter(s=>s.status==="Collected"||s.status==="Processing");
-    const [submittedReports,setSubmittedReports]=useState(null); // null=not checked, []=none, [...]= submitted
+    const submitted=samples.filter(s=>s.status==="Reported"||s.status==="Dispatched");
+    const [submittedReports,setSubmittedReports]=useState(null);
     const [editReason,setEditReason]=useState("");
     const [requesting,setRequesting]=useState(false);
 
     async function loadSample(s) {
-      setSelected(s);setParams([]);setInputs({});setTechNotes("");
-      setSavedMsg("Loading...");setSubmittedReports(null);
+      setSelected(s);setParams([]);setTechNotes("");setSavedMsg("Loading...");setSubmittedReports(null);
       updateStatus(s.id,"Processing").catch(function(){});
       try {
         // Check if already submitted
         const sr=await api("GET","/api/reports/sample/"+s.id+"/submitted");
-        if(sr.submitted && sr.reports && sr.reports.length>0){
-          // Check if any report has edit approved
+        if(sr.submitted&&sr.reports&&sr.reports.length>0){
           const anyApproved=sr.reports.some(r=>r.edit_approved);
-          const anyRequested=sr.reports.some(r=>r.edit_requested);
           if(!anyApproved){
-            // Show submitted state - no edit allowed
             setSubmittedReports(sr.reports);
             setSavedMsg("");
             return;
           }
-          // Edit approved - clear approval and allow re-entry
           setSavedMsg("✏️ Edit approved by admin. You may now modify results.");
         }
-        // Load sample for entry
         const sd=await api("GET","/api/samples/"+s.id);
         if(!sd.sample){setSavedMsg("Error loading sample.");return;}
         const sampleTests=sd.sample.tests||[];
@@ -106,7 +101,6 @@ function TechApp({user,onLogout}) {
       setRequesting(false);
       if(d.message){
         setEditReason("");
-        // Refresh submitted reports
         const sr=await api("GET","/api/reports/sample/"+selected.id+"/submitted");
         if(sr.reports)setSubmittedReports(sr.reports);
         alert("Edit request sent to admin for approval.");
@@ -116,6 +110,7 @@ function TechApp({user,onLogout}) {
     async function saveAll(){
       let anyError=false;let lastReport="";
       setSaving(true);setSavedMsg("Saving...");
+      const techNotesVal=document.getElementById("tech-notes-input")?document.getElementById("tech-notes-input").value:"";
       for(const test of params){
         const results=test.parameters.map(p=>{
           const inp=document.querySelector('[data-pid="'+p.id+'"]');
@@ -126,20 +121,19 @@ function TechApp({user,onLogout}) {
         });
         const filled=results.filter(r=>r.value).length;
         if(!filled)continue;
-        const d=await api("POST","/api/reports/sample/"+selected.id+"/test/"+test.id,{results,tech_notes:techNotes});
+        const d=await api("POST","/api/reports/sample/"+selected.id+"/test/"+test.id,{results,tech_notes:techNotesVal});
         if(d.report)lastReport=d.report.report_no;
         else anyError=true;
       }
       setSaving(false);
       if(lastReport){
         await updateStatus(selected.id,"Reported").catch(function(){});
-        setSavedMsg("✅ Results saved! Report: "+lastReport+" — Submitted for doctor review.");
-        api("GET","/api/samples?limit=50").then(d=>{
-          if(d.samples){setAllSamples(d.samples);setSamples(d.samples.filter(s=>s.status==="Collected"||s.status==="Processing"));}
-        });
-        // Show submitted state after save
+        // Remove from queue immediately
+        setSamples(prev=>prev.filter(s=>s.id!==selected.id));
+        setAllSamples(prev=>prev.map(s=>s.id===selected.id?{...s,status:"Reported"}:s));
         const sr=await api("GET","/api/reports/sample/"+selected.id+"/submitted");
         if(sr.reports){setSubmittedReports(sr.reports);setParams([]);}
+        setSavedMsg("✅ Results saved! Report: "+lastReport+" — Submitted for doctor review.");
       } else {
         setSavedMsg(anyError?"❌ Error saving.":"Enter at least one value first.");
       }
@@ -159,7 +153,7 @@ function TechApp({user,onLogout}) {
           if(d.samples){setAllSamples(d.samples);setSamples(d.samples.filter(s=>s.status==="Collected"||s.status==="Processing"));}
         },className:"btn sm"},"🔄 Refresh")
       ),
-      queue.length===0&&h("div",{className:"card",style:{textAlign:"center",padding:40}},
+      queue.length===0&&submitted.length===0&&h("div",{className:"card",style:{textAlign:"center",padding:40}},
         h("div",{style:{fontSize:44,marginBottom:8}},"✅"),
         h("p",{style:{color:"var(--t2)"}},"No pending samples.")
       ),
@@ -178,32 +172,46 @@ function TechApp({user,onLogout}) {
             h("button",{onClick:()=>loadSample(s),className:"btn sm teal",style:{color:"#fff"}},"Enter Results →")
           )
         )
-      ))
+      )),
+      submitted.length>0&&h("div",null,
+        h("div",{style:{fontSize:10,fontWeight:600,color:"var(--t3)",fontFamily:"var(--mono)",letterSpacing:".08em",textTransform:"uppercase",margin:"16px 0 8px"}},"Submitted — Edit Request Only"),
+        submitted.map(s=>h("div",{key:s.id,className:"card",style:{borderLeft:"3px solid var(--ok)"}},
+          h("div",{style:{display:"flex",justifyContent:"space-between",alignItems:"center",flexWrap:"wrap",gap:10}},
+            h("div",{style:{display:"flex",alignItems:"center",gap:12}},
+              h("div",{className:"avatar",style:{width:44,height:44,fontSize:16}},s.patient_name?s.patient_name[0]:"P"),
+              h("div",null,
+                h("div",{style:{fontWeight:600,fontSize:14}},s.patient_name||"Patient"),
+                h("div",{style:{fontFamily:"var(--mono)",fontSize:11,color:"var(--p)"}},s.sample_no),
+                h("div",{style:{fontSize:11,color:"var(--ok)",fontWeight:500}},"✓ Results Submitted")
+              )
+            ),
+            h("div",{style:{display:"flex",gap:8,alignItems:"center"}},
+              h(Badge,{label:s.status,type:statusType(s.status)}),
+              h("button",{onClick:()=>loadSample(s),className:"btn sm",style:{background:"var(--warn)",color:"#fff",border:"none"}},"✏ Request Edit")
+            )
+          )
+        ))
+      )
     );
 
-    // ── Submitted state - read only ──
+    // ── Submitted read-only view ──
     if(submittedReports&&submittedReports.length>0&&params.length===0)return h("div",{className:"fade-in"},
-      h("div",{style:{display:"flex",alignItems:"center",gap:12,marginBottom:14}},
-        h("button",{onClick:()=>{setSelected(null);setSubmittedReports(null);},className:"btn sm"},"← Back"),
-        h("div",null,
-          h("div",{className:"page-title"},selected.patient_name||"Patient"),
-          h("div",{className:"page-sub"},selected.sample_no+" · submitted")
-        )
+      h("div",{style:{marginBottom:14}},
+        h("div",{className:"page-title"},selected.patient_name||"Patient"),
+        h("div",{className:"page-sub"},selected.sample_no+" · submitted")
       ),
-      h("div",{className:"alert alert-ok",style:{marginBottom:16}},
-        "✅ Results submitted. To modify, request admin approval below."
-      ),
+      h("div",{className:"alert alert-ok",style:{marginBottom:16}},"✅ Results submitted. To modify, request admin approval below."),
       submittedReports.map(rpt=>h("div",{key:rpt.id,className:"card",style:{marginBottom:12}},
-        h("div",{style:{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10,flexWrap:"wrap",gap:8}},
+        h("div",{style:{display:"flex",justifyContent:"space-between",alignItems:"flex-start",flexWrap:"wrap",gap:10,marginBottom:10}},
           h("div",null,
             h("div",{style:{fontWeight:600,fontSize:14}},rpt.test_name),
             h("div",{style:{fontFamily:"var(--mono)",fontSize:11,color:"var(--p)"}},rpt.report_no),
             rpt.is_signed&&h(Badge,{label:"Doctor Signed",type:"ok"})
           ),
-          h("div",null,
+          !rpt.is_signed&&(
             rpt.edit_requested
             ?h(Badge,{label:"Edit Requested — Awaiting Admin",type:"warn"})
-            :!rpt.is_signed&&h("div",{style:{display:"flex",gap:8,alignItems:"center",flexWrap:"wrap"}},
+            :h("div",{style:{display:"flex",gap:8,alignItems:"center",flexWrap:"wrap"}},
               h("input",{value:editReason,onChange:e=>setEditReason(e.target.value),
                 placeholder:"Reason for modification...",
                 style:{fontSize:12,padding:"6px 10px",border:"1px solid var(--b1)",borderRadius:"var(--r-md)",minWidth:180}}),
@@ -263,7 +271,8 @@ function TechApp({user,onLogout}) {
                 h("td",null,
                   h("input",{"data-pid":p.id,type:"tel",inputMode:"decimal",defaultValue:"",
                     placeholder:"—",style:{textAlign:"center",fontWeight:600,width:"100%",fontSize:15,
-                      border:"1px solid var(--b1)",borderRadius:"var(--r-md)",padding:"8px 4px",background:"var(--surface)",minWidth:70}})
+                      border:"1px solid var(--b1)",borderRadius:"var(--r-md)",
+                      padding:"8px 4px",background:"var(--surface)",minWidth:70}})
                 ),
                 h("td",{style:{fontFamily:"var(--mono)",fontSize:11,color:"var(--t3)",whiteSpace:"nowrap"}},p.unit||"—"),
                 h("td",{style:{fontFamily:"var(--mono)",fontSize:11,color:"var(--t3)"}},"auto")
@@ -275,7 +284,7 @@ function TechApp({user,onLogout}) {
       params.length>0&&h("div",{className:"card",style:{marginTop:0}},
         h("div",{className:"form-group"},
           h("label",null,"Technician Notes"),
-          h("textarea",{value:techNotes,onChange:e=>setTechNotes(e.target.value),rows:2,
+          h("textarea",{id:"tech-notes-input",defaultValue:"",rows:2,
             placeholder:"Specimen quality, observations...",style:{resize:"vertical"}})
         ),
         h("button",{onClick:saveAll,disabled:saving,className:"btn primary"},
@@ -316,7 +325,6 @@ function DoctorApp({user,onLogout}) {
   const [samples,setSamples]=useState([]);
   const nav=[
     {id:"dashboard",icon:"🏠",label:"Dashboard"},
-    {id:"signoff",icon:"✍️",label:"Sign Off"},
     {id:"reports",icon:"📊",label:"Reports"},
     {id:"patients",icon:"👥",label:"Patients"},
   ];
@@ -331,34 +339,51 @@ function DoctorApp({user,onLogout}) {
   }
 
   function Dashboard() {
+    const [dashReports,setDashReports]=useState([]);
+    const [dashLoading,setDashLoading]=useState(true);
+    useEffect(()=>{
+      api("GET","/api/reports/all").then(d=>{
+        if(d.reports)setDashReports(d.reports);
+        setDashLoading(false);
+      });
+    },[]);
+    const pending=dashReports.filter(r=>!r.is_signed);
+    const verified=dashReports.filter(r=>r.is_signed);
+    const todaySigned=verified.filter(r=>r.signed_at&&new Date(r.signed_at).toDateString()===new Date().toDateString());
+    const critical=dashReports.filter(r=>(r.results||[]).some(x=>x.flag==="Critical"||x.flag==="High"));
     return h("div",{className:"fade-in"},
       h("div",{className:"page-header"},
-        h("div",{className:"page-title"},"Doctor Dashboard"),
-        h("div",{className:"page-sub"},"dr. "+user.name.toLowerCase()+" · pending sign-off")
+        h("div",{className:"page-title"},(function(){const hr=new Date().getHours();const g=hr<12?"Good morning":hr<17?"Good afternoon":hr<21?"Good evening":"Good night";return g+", Dr. "+user.name.split(" ")[0]+" 👋";})()),
+        h("div",{className:"page-sub"},"doctor · "+new Date().toDateString().toLowerCase())
       ),
-      h("div",{className:"stat-grid",style:{gridTemplateColumns:"repeat(3,1fr)"}},
-        [{label:"To Review",val:samples.length,cls:"warn",c:"gold"},
-         {label:"Signed Today",val:0,cls:"ok",c:""},
-         {label:"Critical",val:0,cls:"danger",c:"red"},
+      h("div",{className:"stat-grid"},
+        [{label:"Pending Review",val:pending.length,cls:"warn",c:"gold"},
+         {label:"Signed Today",val:todaySigned.length,cls:"ok",c:"teal"},
+         {label:"Total Reports",val:dashReports.length,cls:"",c:""},
+         {label:"Critical Flags",val:critical.length,cls:"danger",c:"red"},
         ].map(s=>h("div",{key:s.label,className:"stat-card "+(s.c||"")},
           h("div",{className:"stat-label"},s.label),
-          h("div",{className:"stat-val "+(s.cls||"")},s.val)
+          h("div",{className:"stat-val "+(s.cls||"")},dashLoading?"—":s.val)
         ))
       ),
       h("div",{className:"card"},
-        h("div",{className:"section-title"},"Pending Sign-off"),
-        samples.length===0&&h("div",{style:{textAlign:"center",padding:24,color:"var(--t3)",fontFamily:"var(--mono)",fontSize:12}},"✓ ALL CLEAR — No reports pending"),
-        samples.map(s=>h("div",{key:s.id,className:"row"},
+        h("div",{style:{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12}},
+          h("div",{className:"section-title",style:{marginBottom:0}},"Pending Sign-off"),
+          pending.length>0&&h("button",{onClick:()=>setActive("reports"),className:"btn sm",style:{background:"var(--ok)",color:"#fff",border:"none"}},"Go to Reports →")
+        ),
+        dashLoading&&h(Spinner),
+        !dashLoading&&pending.length===0&&h("div",{style:{textAlign:"center",padding:24,color:"var(--t3)",fontFamily:"var(--mono)",fontSize:12}},"✓ ALL CLEAR — No reports pending sign-off"),
+        !dashLoading&&pending.slice(0,5).map(r=>h("div",{key:r.id,className:"row"},
           h("div",{style:{display:"flex",alignItems:"center",gap:12}},
-            h("div",{className:"avatar"},s.patient_name?s.patient_name[0]:"P"),
+            h("div",{className:"avatar"},r.patient_name?r.patient_name[0]:"P"),
             h("div",null,
-              h("div",{style:{fontWeight:500,fontSize:13,color:"var(--t1)"}},s.patient_name||"Patient"),
-              h("div",{style:{fontSize:11,color:"var(--t3)",fontFamily:"var(--mono)"}},s.sample_no+" · "+(s.test_codes||[]).join(", "))
+              h("div",{style:{fontWeight:500,fontSize:13}},r.patient_name||"Patient"),
+              h("div",{style:{fontSize:11,color:"var(--t3)",fontFamily:"var(--mono)"}},r.report_no+" · "+r.test_name)
             )
           ),
-          h("div",{style:{display:"flex",gap:8}},
-            h(Badge,{label:s.status,type:statusType(s.status)}),
-            h("button",{onClick:()=>signReport(s.id),className:"btn sm",style:{background:"var(--ok)",color:"#fff",border:"none"}},"Sign & Dispatch ✓")
+          h("div",{style:{display:"flex",gap:8,alignItems:"center"}},
+            h(Badge,{label:"Pending",type:"warn"}),
+            h("button",{onClick:()=>setActive("reports"),className:"btn sm",style:{background:"var(--ok)",color:"#fff",border:"none"}},"Review →")
           )
         ))
       )
@@ -494,7 +519,7 @@ function DoctorApp({user,onLogout}) {
     );
   }
 
-  const pages={dashboard:h(Dashboard),signoff:h(SignOff),reports:h(DoctorReports),patients:h(DoctorPatients)};
+  const pages={dashboard:h(Dashboard),reports:h(DoctorReports),patients:h(DoctorPatients)};
   return h(AppShell,{nav,active,setActive,user,onLogout},pages[active]||pages.dashboard);
 }
 

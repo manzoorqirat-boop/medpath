@@ -95,28 +95,52 @@ router.post("/sample/:sampleId/test/:testId", authorize("technician","admin"), a
     
     let report;
     await transaction(async (client) => {
-      const { rows: [{ val }] } = await client.query("SELECT nextval('seq_report_no') AS val");
-      const reportNo = "RPT-"+new Date().getFullYear()+"-"+String(val).padStart(5,"0");
-      const { rows: [rpt] } = await client.query(`
-        INSERT INTO reports(sample_id,test_id,technician_id,tech_notes,report_no)
-        VALUES($1,$2,$3,$4,$5)
-        ON CONFLICT(sample_id,test_id)
-        DO UPDATE SET tech_notes=EXCLUDED.tech_notes,technician_id=$3,updated_at=NOW()
-        RETURNING *`,
-        [req.params.sampleId,req.params.testId,req.user.id,tech_notes||null,reportNo]);
-      await client.query("DELETE FROM report_results WHERE report_id=$1",[rpt.id]);
-      for (const r of results) {
-        await client.query(`
-          INSERT INTO report_results(report_id,param_name,value,unit,flag,ref_range)
-          VALUES($1,$2,$3,$4,$5,$6)`,
-          [rpt.id,r.param_name,r.value,r.unit||"",r.flag||"Normal",r.ref_range||""]);
+      // Get or create report (ON CONFLICT keeps existing report_id)
+      const { rows: [existing] } = await client.query(
+        "SELECT id,report_no FROM reports WHERE sample_id=$1 AND test_id=$2",
+        [req.params.sampleId, req.params.testId]);
+      
+      let rpt;
+      if (existing) {
+        // Update existing report
+        const { rows: [updated] } = await client.query(
+          "UPDATE reports SET tech_notes=$1,technician_id=$2,updated_at=NOW() WHERE id=$3 RETURNING *",
+          [tech_notes||null, req.user.id, existing.id]);
+        rpt = updated;
+      } else {
+        // Create new report with sequence number
+        const { rows: [{ val }] } = await client.query("SELECT nextval('seq_report_no') AS val");
+        const reportNo = "RPT-"+new Date().getFullYear()+"-"+String(val).padStart(5,"0");
+        const { rows: [created] } = await client.query(
+          "INSERT INTO reports(sample_id,test_id,technician_id,tech_notes,report_no) VALUES($1,$2,$3,$4,$5) RETURNING *",
+          [req.params.sampleId, req.params.testId, req.user.id, tech_notes||null, reportNo]);
+        rpt = created;
+      }
+
+      // Clear old results and insert new ones (only filled)
+      await client.query("DELETE FROM report_results WHERE report_id=$1", [rpt.id]);
+      for (const r of filledResults) {
+        await client.query(
+          "INSERT INTO report_results(report_id,param_name,value,unit,flag,ref_range) VALUES($1,$2,$3,$4,$5,$6)",
+          [rpt.id, r.param_name, r.value, r.unit||"", r.flag||"Normal", r.ref_range||""]);
+      }
+      // Also insert pending (empty) params so doctor sees full list
+      const emptyResults = results.filter(r => !r.value || r.value.toString().trim() === "");
+      for (const r of emptyResults) {
+        await client.query(
+          "INSERT INTO report_results(report_id,param_name,value,unit,flag,ref_range) VALUES($1,$2,$3,$4,$5,$6)",
+          [rpt.id, r.param_name, "", r.unit||"", "Pending", r.ref_range||""]);
       }
       await client.query(
-        "UPDATE sample_tests SET status='Reported' WHERE sample_id=$1 AND test_id=$2",
-        [req.params.sampleId,req.params.testId]);
-      report = { ...rpt, results };
+        "UPDATE samples SET status='Reported' WHERE id=$1",
+        [req.params.sampleId]);
+      report = rpt;
     });
-    res.json({ report });
+
+    // Fetch fresh results from DB to confirm save
+    const { rows: savedResults } = await query(
+      "SELECT * FROM report_results WHERE report_id=$1 ORDER BY created_at", [report.id]);
+    res.json({ report: { ...report, results: savedResults } });
   } catch (err) { next(err); }
 });
 

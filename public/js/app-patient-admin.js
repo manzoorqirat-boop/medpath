@@ -293,7 +293,7 @@ function PatientApp({user,onLogout}) {
               h("td",null,r.is_signed?h(Badge,{label:"Verified",type:"ok"}):h(Badge,{label:"Pending",type:"warn"})),
               h("td",null,h("div",{style:{display:"flex",gap:6}},
                 h("button",{onClick:()=>setViewId(r.id),className:"btn sm",style:{background:"var(--p)",color:"#fff",border:"none"}},"View"),
-                h("button",{onClick:()=>window.open(API+"/api/reports/"+r.id+"/pdf","_blank"),className:"btn sm teal",style:{color:"#fff"}},"PDF")
+                h("button",{onClick:()=>window.open(API+"/api/reports/"+r.id+"/pdf?token="+encodeURIComponent(TOKEN),"_blank"),className:"btn sm teal",style:{color:"#fff"}},"PDF")
               ))
             )))
           )

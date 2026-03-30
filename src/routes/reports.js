@@ -88,7 +88,7 @@ router.post("/sample/:sampleId/test/:testId", authorize("technician","admin"), a
     }
     
     // Check at least one result has a value
-    const filledResults = results.filter(r => r.value !== undefined && r.value !== null);
+    const filledResults = results.filter(r => r.value && r.value.toString().trim() !== "");
     if (!filledResults.length) {
       return res.status(400).json({ error: "Enter at least one value" });
     }

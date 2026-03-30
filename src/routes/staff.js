@@ -36,12 +36,17 @@ router.get("/", authorize("admin"), async (req, res, next) => {
 router.post("/", authorize("admin"), async (req, res, next) => {
   const ip = getIP(req);
   try {
-    const { name, email, phone, role, designation, department, qualification, account_expires_at } = req.body;
-    if (!name || !email || !designation) return res.status(400).json({ error: "Name, email and designation required" });
+    const { name, email, phone, role, designation, department, qualification, account_expires_at, username } = req.body;
+    if (!name || !username || !designation) return res.status(400).json({ error: "Name, username and designation required" });
 
-    // Check duplicate email
-    const { rows: existing } = await query("SELECT id FROM users WHERE email=$1", [email.trim().toLowerCase()]);
-    if (existing.length) return res.status(400).json({ error: "Email already registered" });
+    // Check duplicate username
+    const { rows: existingU } = await query("SELECT id FROM users WHERE username=$1", [username.toLowerCase()]);
+    if (existingU.length) return res.status(400).json({ error: "Username already taken. Choose another." });
+    // Check duplicate email (optional)
+    if (email) {
+      const { rows: existing } = await query("SELECT id FROM users WHERE email=$1", [email.trim().toLowerCase()]);
+      if (existing.length) return res.status(400).json({ error: "Email already registered" });
+    }
 
     // Generate temporary password
     const tempPwd  = generateTempPassword();
@@ -56,7 +61,7 @@ router.post("/", authorize("admin"), async (req, res, next) => {
       INSERT INTO users(name,email,phone,username,password_hash,temp_password_hash,temp_password_expires,
         must_change_password,role,is_active,created_by,password_expires_at,account_expires_at)
       VALUES($1,$2,$3,$4,$5,$5,$6,true,$7,true,$8,$9,$10) RETURNING *`,
-      [name, email?email.trim().toLowerCase():null, phone||null, username||null, tempHash, tempExpires, role, req.user.id, pwdExpires, account_expires_at||null]);
+      [name, email?email.trim().toLowerCase():null, phone||null, username.toLowerCase(), tempHash, tempExpires, role, req.user.id, pwdExpires, account_expires_at||null]);
 
     const { rows:[{val}] } = await query("SELECT nextval('seq_staff_no') AS val");
     const staffNo = "STF-"+String(val).padStart(4,"0");

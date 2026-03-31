@@ -12,7 +12,7 @@ function getIP(req) {
 }
 
 function generateTempPassword() {
-  return "Medpath@" + Math.random().toString(36).slice(2,7).toUpperCase();
+  return "Nidan@" + Math.random().toString(36).slice(2,7).toUpperCase();
 }
 
 /* GET /api/staff — list all staff */

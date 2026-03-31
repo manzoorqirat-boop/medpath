@@ -140,7 +140,7 @@ router2.get("/", authorize("admin"), async (req, res, next) => {
 
 router2.post("/", authorize("admin"), async (req, res, next) => {
   try {
-    const { name,email,phone,role,designation,department,qualification,joined_date,password="medpath@123" } = req.body;
+    const { name,email,phone,role,designation,department,qualification,joined_date,password="nidan@123" } = req.body;
     const hash = await bcrypt.hash(password, 12);
     const { rows: [user] } = await query(
       "INSERT INTO users(name,email,phone,password_hash,role) VALUES($1,$2,$3,$4,$5) RETURNING *",

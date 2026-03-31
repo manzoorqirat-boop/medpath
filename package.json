@@ -1,7 +1,7 @@
 {
-  "name": "medpath-backend",
+  "name": "nidan-backend",
   "version": "1.0.0",
-  "description": "MedPath Pathology Lab – REST API Backend",
+  "description": "Nidan Pathology Lab – REST API Backend",
   "main": "src/index.js",
   "scripts": {
     "start": "node src/index.js",

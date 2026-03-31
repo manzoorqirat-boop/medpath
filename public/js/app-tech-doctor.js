@@ -429,7 +429,7 @@ function DoctorApp({user,onLogout}) {
     }
     async function sendWA(id){const r=await api("GET","/api/reports/"+id+"/whatsapp-link");if(r.link)window.open(r.link,"_blank");else setMsg(r.error||"Failed");}
     async function sendMail(id){const r=await api("POST","/api/reports/"+id+"/send-email",{});setMsg(r.message||r.error||"");}
-    if(viewId)return h(ReportViewer,{reportId:viewId,onClose:()=>setViewId(null),showSendActions:true});
+    if(viewId)return h(ReportViewer,{reportId:viewId,onClose:()=>setViewId(null),showSendActions:true,onSign:(id)=>{setViewId(null);setSignId(id);setNote("");}});
     return h("div",{className:"fade-in"},
       signId&&h(Modal,{title:"Sign & Verify Report",onClose:()=>setSignId(null)},
         h("div",{style:{background:"var(--p-light)",borderRadius:"var(--r-md)",padding:"12px 14px",marginBottom:14}},

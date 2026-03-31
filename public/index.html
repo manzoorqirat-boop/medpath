@@ -567,7 +567,7 @@ function BottomNav({nav,active,setActive}) {
   );
 }
 
-function ReportViewer({reportId,onClose,showSendActions}) {
+function ReportViewer({reportId,onClose,showSendActions,onSign}) {
   const [data,setData]=useState(null);
   const [loading,setLoading]=useState(true);
   const [msg,setMsg]=useState("");

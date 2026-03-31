@@ -122,7 +122,12 @@ function PatientApp({user,onLogout}) {
       });
       setCart(prev=>prev.filter(c=>c.id!==testId));
     }
-    function selectAll(t){
+    function selectAllParams(t){
+      const allIds=(t.parameters||[]).map(p=>p.id);
+      setParamSelections(prev=>({...prev,[t.id]:{mode:"params",selectedParamIds:allIds}}));
+      setCart(prev=>prev.filter(c=>c.id!==t.id));
+    }
+    function resetToFull(t){
       setParamSelections(prev=>({...prev,[t.id]:{mode:"full",selectedParamIds:[]}}));
       setCart(prev=>prev.filter(c=>c.id!==t.id));
     }
@@ -142,7 +147,7 @@ function PatientApp({user,onLogout}) {
     return h("div",{className:"fade-in"},
       h("div",{className:"page-header"},
         h("div",{className:"page-title"},"Book Tests"),
-        h("div",{className:"page-sub"},"select full test or individual parameters")
+        h("div",{className:"page-sub"},"tap a row to expand and select parameters")
       ),
       cart.length>0&&h("div",{className:"cart-bar"},
         h("div",null,
@@ -156,53 +161,126 @@ function PatientApp({user,onLogout}) {
         h("input",{value:search,onChange:e=>setSearch(e.target.value),placeholder:"Search tests..."})
       ),
       tests.length===0&&h(Spinner),
-      h("div",{style:{display:"flex",flexDirection:"column",gap:10}},
-        filtered.map(t=>{
-          const sel=getSelection(t.id);
-          const inC=inCart(t.id);
-          const hasParams=(t.parameters||[]).length>0;
-          const isExp=expanded===t.id;
-          const cartPrice=getCartPrice(t);
-          const selectedCount=sel.selectedParamIds.length;
-          return h("div",{key:t.id,className:"card",style:{padding:"14px 16px",border:inC?"2px solid var(--p)":"1px solid var(--b2)"}},
-            h("div",{style:{display:"flex",justifyContent:"space-between",alignItems:"center",flexWrap:"wrap",gap:8}},
-              h("div",{style:{flex:1}},
-                h("div",{style:{fontSize:9.5,fontWeight:600,color:"var(--p-mid)",textTransform:"uppercase",letterSpacing:".08em",fontFamily:"var(--mono)",marginBottom:2}},t.category),
-                h("div",{style:{fontWeight:600,fontSize:14,color:"var(--t1)",marginBottom:2}},t.name),
-                t.fasting_required&&h("div",{style:{fontSize:10,color:"var(--warn)",fontFamily:"var(--mono)"}},"Fasting Required"),
-                h("div",{style:{display:"flex",gap:10,alignItems:"center",marginTop:4,flexWrap:"wrap"}},
-                  h("div",{style:{fontFamily:"var(--serif)",fontSize:18}},
-                    sel.mode==="params"&&selectedCount>0?"Rs."+cartPrice.toFixed(0)+" ("+selectedCount+" params)":"Rs."+t.price
-                  ),
-                  hasParams&&h("button",{onClick:e=>{e.stopPropagation();setExpanded(isExp?null:t.id);},className:"btn sm",style:{fontSize:11,padding:"3px 10px"}},isExp?"Hide":"Select Params")
-                )
-              ),
-              h("div",{onClick:e=>{e.stopPropagation();toggleCart(t);},style:{width:36,height:36,borderRadius:"50%",background:inC?"var(--p)":"var(--surface2)",border:"2px solid "+(inC?"var(--p)":"var(--b1)"),display:"flex",alignItems:"center",justifyContent:"center",color:inC?"#fff":"var(--t3)",fontSize:18,fontWeight:700,cursor:"pointer",flexShrink:0}},inC?"v":"+")
-            ),
-            isExp&&hasParams&&h("div",{style:{marginTop:12,paddingTop:12,borderTop:"1px solid var(--b2)"}},
-              h("div",{style:{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8}},
-                h("div",{style:{fontSize:11,fontWeight:600,color:"var(--t3)",fontFamily:"var(--mono)",textTransform:"uppercase"}},"Choose Parameters"),
-                h("button",{onClick:e=>{e.stopPropagation();selectAll(t);},className:"btn sm",style:{fontSize:11}},sel.mode==="full"&&!selectedCount?"Full Test":"Reset to Full")
-              ),
-              h("div",{style:{display:"grid",gridTemplateColumns:"1fr 1fr",gap:6}},
-                (t.parameters||[]).map(p=>{
-                  const isSel=sel.selectedParamIds.includes(p.id);
-                  return h("div",{key:p.id,onClick:e=>{e.stopPropagation();toggleParam(t.id,p.id);},
-                    style:{padding:"8px 10px",borderRadius:"var(--r-md)",cursor:"pointer",
-                      border:"1.5px solid "+(isSel?"var(--p)":"var(--b2)"),
-                      background:isSel?"var(--p-light)":"var(--surface)"}},
-                    h("div",{style:{fontSize:12,fontWeight:500,color:isSel?"var(--p)":"var(--t1)"}},p.param_name),
-                    p.unit&&h("div",{style:{fontSize:10,color:"var(--t3)",fontFamily:"var(--mono)"}},p.unit),
-                    p.price>0&&h("div",{style:{fontSize:11,color:"var(--ok)"}},"+Rs."+p.price)
-                  );
-                })
-              ),
-              selectedCount>0&&h("div",{style:{marginTop:8,padding:"6px 10px",background:"var(--p-light)",borderRadius:"var(--r-sm)",fontSize:11,color:"var(--p)",fontFamily:"var(--mono)"}},
-                selectedCount+" selected - Rs."+cartPrice.toFixed(0)
-              )
+      h("div",{className:"card",style:{padding:0,overflow:"hidden"}},
+        h("table",{style:{width:"100%",borderCollapse:"collapse"}},
+          h("thead",null,
+            h("tr",{style:{background:"var(--surface2)"}},
+              h("th",{style:{padding:"10px 12px",textAlign:"left",fontSize:10,fontWeight:600,color:"var(--t3)",fontFamily:"var(--mono)",textTransform:"uppercase",letterSpacing:".08em",borderBottom:"1px solid var(--b2)"}},"Test Name"),
+              h("th",{style:{padding:"10px 8px",textAlign:"center",fontSize:10,fontWeight:600,color:"var(--t3)",fontFamily:"var(--mono)",textTransform:"uppercase",letterSpacing:".08em",borderBottom:"1px solid var(--b2)"}},"Params"),
+              h("th",{style:{padding:"10px 8px",textAlign:"right",fontSize:10,fontWeight:600,color:"var(--t3)",fontFamily:"var(--mono)",textTransform:"uppercase",letterSpacing:".08em",borderBottom:"1px solid var(--b2)"}},"Price"),
+              h("th",{style:{padding:"10px 8px",textAlign:"center",fontSize:10,fontWeight:600,color:"var(--t3)",fontFamily:"var(--mono)",textTransform:"uppercase",letterSpacing:".08em",borderBottom:"1px solid var(--b2)"}},"Add")
             )
-          );
-        })
+          ),
+          h("tbody",null,
+            filtered.map(t=>{
+              const sel=getSelection(t.id);
+              const inC=inCart(t.id);
+              const hasParams=(t.parameters||[]).length>0;
+              const isExp=expanded===t.id;
+              const cartPrice=getCartPrice(t);
+              const selectedCount=sel.selectedParamIds.length;
+              const allSelected=hasParams&&selectedCount===(t.parameters||[]).length;
+              return [
+                h("tr",{key:t.id,
+                  onClick:()=>hasParams&&setExpanded(isExp?null:t.id),
+                  style:{cursor:hasParams?"pointer":"default",
+                    background:inC?"var(--p-light)":isExp?"var(--surface2)":"var(--surface)",
+                    borderBottom:isExp?"none":"1px solid var(--b2)",
+                    transition:"background .15s"}},
+                  h("td",{style:{padding:"12px 12px"}},
+                    h("div",{style:{fontWeight:600,fontSize:13,color:"var(--t1)"}},t.name),
+                    h("div",{style:{fontSize:10,color:"var(--p-mid)",fontFamily:"var(--mono)",textTransform:"uppercase",letterSpacing:".06em",marginTop:2}},t.category),
+                    t.fasting_required&&h("div",{style:{fontSize:10,color:"var(--warn)",marginTop:2}},"⚠ Fasting")
+                  ),
+                  h("td",{style:{padding:"12px 8px",textAlign:"center"}},
+                    hasParams
+                      ? h("div",{style:{fontSize:12,color:selectedCount>0?"var(--p)":"var(--t3)",fontWeight:selectedCount>0?600:400}},
+                          selectedCount>0?selectedCount+"/"+(t.parameters||[]).length:(t.parameters||[]).length)
+                      : h("div",{style:{fontSize:11,color:"var(--t3)"}},"—")
+                  ),
+                  h("td",{style:{padding:"12px 8px",textAlign:"right"}},
+                    h("div",{style:{fontFamily:"var(--serif)",fontSize:14,fontWeight:600,color:"var(--t1)"}},
+                      "Rs."+(selectedCount>0?cartPrice.toFixed(0):Number(t.price).toFixed(0))
+                    ),
+                    selectedCount>0&&h("div",{style:{fontSize:10,color:"var(--p)",fontFamily:"var(--mono)"}},"custom")
+                  ),
+                  h("td",{style:{padding:"12px 8px",textAlign:"center"}},
+                    h("div",{
+                      onClick:e=>{e.stopPropagation();toggleCart(t);},
+                      style:{width:32,height:32,borderRadius:"50%",
+                        background:inC?"var(--p)":"var(--surface2)",
+                        border:"2px solid "+(inC?"var(--p)":"var(--b1)"),
+                        display:"flex",alignItems:"center",justifyContent:"center",
+                        color:inC?"#fff":"var(--p)",fontSize:18,fontWeight:700,
+                        cursor:"pointer",margin:"0 auto",transition:"all .15s"}
+                    },inC?"✓":"+")
+                  )
+                ),
+                isExp&&hasParams&&h("tr",{key:t.id+"-params",style:{background:"var(--surface2)"}},
+                  h("td",{colSpan:4,style:{padding:"0 12px 14px"}},
+                    h("div",{style:{paddingTop:12,borderTop:"1px solid var(--b2)"}},
+                      h("div",{style:{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10}},
+                        h("div",{style:{fontSize:11,fontWeight:600,color:"var(--t2)",fontFamily:"var(--mono)",textTransform:"uppercase",letterSpacing:".06em"}},"Parameters"),
+                        h("div",{style:{display:"flex",gap:6}},
+                          h("button",{
+                            onClick:e=>{e.stopPropagation();selectAllParams(t);},
+                            className:"btn sm",
+                            style:{fontSize:11,padding:"4px 10px",
+                              background:allSelected?"var(--p)":"var(--surface)",
+                              color:allSelected?"#fff":"var(--t1)",
+                              borderColor:allSelected?"var(--p)":"var(--b1)"}
+                          },"Select All"),
+                          selectedCount>0&&h("button",{
+                            onClick:e=>{e.stopPropagation();resetToFull(t);},
+                            className:"btn sm",
+                            style:{fontSize:11,padding:"4px 10px"}
+                          },"Reset")
+                        )
+                      ),
+                      h("table",{style:{width:"100%",borderCollapse:"collapse",borderRadius:"var(--r-md)",overflow:"hidden",border:"1px solid var(--b2)"}},
+                        h("thead",null,
+                          h("tr",{style:{background:"var(--surface)"}},
+                            h("th",{style:{padding:"7px 10px",textAlign:"left",fontSize:10,color:"var(--t3)",fontFamily:"var(--mono)",textTransform:"uppercase",letterSpacing:".06em",borderBottom:"1px solid var(--b2)"}},"Parameter"),
+                            h("th",{style:{padding:"7px 8px",textAlign:"center",fontSize:10,color:"var(--t3)",fontFamily:"var(--mono)",textTransform:"uppercase",letterSpacing:".06em",borderBottom:"1px solid var(--b2)"}},"Unit"),
+                            h("th",{style:{padding:"7px 8px",textAlign:"right",fontSize:10,color:"var(--t3)",fontFamily:"var(--mono)",textTransform:"uppercase",letterSpacing:".06em",borderBottom:"1px solid var(--b2)"}},"Price"),
+                            h("th",{style:{padding:"7px 8px",textAlign:"center",fontSize:10,color:"var(--t3)",fontFamily:"var(--mono)",textTransform:"uppercase",letterSpacing:".06em",borderBottom:"1px solid var(--b2)"}},"✓")
+                          )
+                        ),
+                        h("tbody",null,
+                          (t.parameters||[]).map((p,i)=>{
+                            const isSel=sel.selectedParamIds.includes(p.id);
+                            return h("tr",{key:p.id,
+                              onClick:e=>{e.stopPropagation();toggleParam(t.id,p.id);},
+                              style:{cursor:"pointer",
+                                background:isSel?"var(--p-light)":"transparent",
+                                borderBottom:i<(t.parameters.length-1)?"1px solid var(--b2)":"none",
+                                transition:"background .12s"}},
+                              h("td",{style:{padding:"9px 10px",fontSize:13,fontWeight:500,color:isSel?"var(--p)":"var(--t1)"}},p.param_name),
+                              h("td",{style:{padding:"9px 8px",textAlign:"center",fontSize:11,color:"var(--t3)",fontFamily:"var(--mono)"}},p.unit||"—"),
+                              h("td",{style:{padding:"9px 8px",textAlign:"right",fontSize:12,color:p.price>0?"var(--ok)":"var(--t3)"}},p.price>0?"Rs."+p.price:"incl."),
+                              h("td",{style:{padding:"9px 8px",textAlign:"center"}},
+                                h("div",{style:{width:20,height:20,borderRadius:4,
+                                  background:isSel?"var(--p)":"var(--surface)",
+                                  border:"2px solid "+(isSel?"var(--p)":"var(--b1)"),
+                                  display:"flex",alignItems:"center",justifyContent:"center",
+                                  margin:"0 auto",fontSize:12,color:"#fff",fontWeight:700}},
+                                  isSel?"✓":"")
+                              )
+                            );
+                          })
+                        )
+                      ),
+                      selectedCount>0&&h("div",{style:{marginTop:10,padding:"8px 12px",background:"var(--p-light)",borderRadius:"var(--r-md)",display:"flex",justifyContent:"space-between",alignItems:"center"}},
+                        h("div",{style:{fontSize:12,color:"var(--p)",fontFamily:"var(--mono)"}},"✓ "+selectedCount+" parameter"+(selectedCount>1?"s":"")+" selected"),
+                        h("div",{style:{fontSize:13,fontWeight:700,color:"var(--p)",fontFamily:"var(--serif)"}},"Rs."+cartPrice.toFixed(0))
+                      )
+                    )
+                  )
+                )
+              ];
+            })
+          )
+        )
       )
     );
   }

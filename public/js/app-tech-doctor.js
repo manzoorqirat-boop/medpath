@@ -411,42 +411,53 @@ function DoctorApp({user,onLogout}) {
     );
   }
 
+  function SignPage({reportId,reportInfo,onBack,onSigned}) {
+    const [note,setNote]=useState("");
+    const [saving,setSaving]=useState(false);
+    const [msg,setMsg]=useState("");
+    async function doSign(){
+      setSaving(true);setMsg("");
+      const d=await api("PATCH","/api/reports/"+reportId+"/sign",{pathologist_note:note});
+      setSaving(false);
+      if(d.report){setMsg("Report verified!");setTimeout(()=>{onSigned(reportId);},1200);}
+      else setMsg("Error: "+(d.error||"Unknown"));
+    }
+    return h("div",{className:"fade-in",style:{padding:"16px"}},
+      h("div",{style:{display:"flex",alignItems:"center",gap:10,marginBottom:20}},
+        h("button",{onClick:onBack,className:"btn sm"},"← Back"),
+        h("div",{style:{fontWeight:700,fontSize:17}},"Sign & Verify Report")
+      ),
+      reportInfo&&h("div",{style:{background:"var(--surface2)",borderRadius:"var(--r-md)",padding:"12px 14px",marginBottom:16,fontSize:13}},
+        h("div",{style:{fontWeight:600}},reportInfo.patient_name," · ",h("span",{style:{color:"var(--p)",fontFamily:"var(--mono)"}},reportInfo.report_no)),
+        h("div",{style:{color:"var(--t2)",marginTop:2}},reportInfo.test_name)
+      ),
+      h("div",{style:{background:"var(--p-light)",borderRadius:"var(--r-md)",padding:"12px 14px",marginBottom:16}},
+        h("div",{style:{fontSize:11,fontWeight:600,color:"var(--p)",fontFamily:"var(--mono)",marginBottom:4}},"SIGNING AS"),
+        h("div",{style:{fontSize:14,fontWeight:600}},user.name),
+        h("div",{style:{fontSize:12,color:"var(--t2)"}},user.designation||"Pathologist"),
+        h("div",{style:{fontSize:11,color:"var(--t3)",fontFamily:"var(--mono)"}},new Date().toLocaleDateString("en-IN")+" · "+new Date().toLocaleTimeString("en-IN",{hour:"2-digit",minute:"2-digit"}))
+      ),
+      h("div",{className:"form-group",style:{marginBottom:16}},
+        h("label",{style:{display:"block",marginBottom:6,fontSize:13,fontWeight:500}},"Pathologist Remarks (optional)"),
+        h("textarea",{value:note,onChange:e=>setNote(e.target.value),rows:4,placeholder:"All values within normal limits...",style:{width:"100%",padding:"10px 12px",borderRadius:"var(--r-md)",border:"1px solid var(--b2)",fontSize:13,fontFamily:"var(--sans)",resize:"vertical",boxSizing:"border-box"}})
+      ),
+      msg&&h("div",{className:"alert "+(msg.includes("Error")?"alert-err":"alert-ok"),style:{marginBottom:12}},msg),
+      h("button",{onClick:doSign,disabled:saving,className:"btn primary",style:{width:"100%",padding:"14px",fontSize:15,fontWeight:600}},saving?"Signing...":"✅ Sign & Verify Report")
+    );
+  }
+
   function DoctorReports() {
     const [reports,setReports]=useState([]);
     const [loading,setLoading]=useState(true);
     const [viewId,setViewId]=useState(null);
-    const [signId,setSignId]=useState(null);
-    const [note,setNote]=useState("");
-    const [saving,setSaving]=useState(false);
+    const [signData,setSignData]=useState(null);
     const [msg,setMsg]=useState("");
     useEffect(()=>{api("GET","/api/reports/all").then(d=>{if(d.reports)setReports(d.reports);else setReports([]);setLoading(false);}).catch(()=>setLoading(false));},[]);
-    async function signReport(id){
-      setSaving(true);setMsg("");
-      const d=await api("PATCH","/api/reports/"+id+"/sign",{pathologist_note:note});
-      setSaving(false);
-      if(d.report){setReports(prev=>prev.map(r=>r.id===id?{...r,is_signed:true,pathologist_name:user.name}:r));setSignId(null);setNote("");setMsg("Report verified!");}
-      else setMsg("Error: "+(d.error||"Unknown"));
-    }
     async function sendWA(id){const r=await api("GET","/api/reports/"+id+"/whatsapp-link");if(r.link)window.open(r.link,"_blank");else setMsg(r.error||"Failed");}
     async function sendMail(id){const r=await api("POST","/api/reports/"+id+"/send-email",{});setMsg(r.message||r.error||"");}
-    if(viewId)return h(ReportViewer,{reportId:viewId,onClose:()=>setViewId(null),showSendActions:true,onSign:(id)=>{setViewId(null);setSignId(id);setNote("");}});
+    if(viewId)return h(ReportViewer,{reportId:viewId,onClose:()=>setViewId(null),showSendActions:true});
+    if(signData)return h(SignPage,{reportId:signData.id,reportInfo:signData,onBack:()=>setSignData(null),onSigned:(id)=>{setReports(prev=>prev.map(r=>r.id===id?{...r,is_signed:true}:r));setSignData(null);}});
     return h("div",{className:"fade-in"},
-      signId&&h(Modal,{title:"Sign & Verify Report",onClose:()=>setSignId(null)},
-        h("div",{style:{background:"var(--p-light)",borderRadius:"var(--r-md)",padding:"12px 14px",marginBottom:14}},
-          h("div",{style:{fontSize:11,fontWeight:600,color:"var(--p)",fontFamily:"var(--mono)",marginBottom:4}},"SIGNING AS"),
-          h("div",{style:{fontSize:14,fontWeight:600}},user.name),
-          h("div",{style:{fontSize:12,color:"var(--t2)"}},user.designation||"Pathologist"),
-          h("div",{style:{fontSize:11,color:"var(--t3)",fontFamily:"var(--mono)"}},new Date().toLocaleDateString("en-IN")+" · "+new Date().toLocaleTimeString("en-IN",{hour:"2-digit",minute:"2-digit"}))
-        ),
-        h("div",{className:"form-group"},
-          h("label",null,"Pathologist Remarks (optional)"),
-          h("textarea",{value:note,onChange:e=>setNote(e.target.value),rows:3,placeholder:"All values within normal limits...",style:{resize:"vertical"}})
-        ),
-        h("div",{style:{display:"flex",gap:10,marginTop:8}},
-          h("button",{onClick:()=>signReport(signId),disabled:saving,className:"btn primary",style:{flex:1}},saving?"Signing...":"Sign & Verify Report ✓"),
-          h("button",{onClick:()=>setSignId(null),className:"btn",style:{padding:"12px 20px"}},"Cancel")
-        )
-      ),
       h("div",{className:"page-header"},h("div",{className:"page-title"},"Reports Management"),h("div",{className:"page-sub"},"verify, dispatch and share reports")),
       msg&&h("div",{className:"alert "+(msg.includes("Error")||msg.includes("failed")?"alert-err":"alert-ok")},msg),
       loading&&h(Spinner),
@@ -463,7 +474,7 @@ function DoctorApp({user,onLogout}) {
               h("td",null,r.is_signed?h(Badge,{label:"Verified",type:"ok"}):h(Badge,{label:"Pending",type:"warn"})),
               h("td",null,h("div",{style:{display:"flex",gap:4,flexWrap:"wrap"}},
                 h("button",{onClick:()=>setViewId(r.id),className:"btn sm",style:{background:"var(--p)",color:"#fff",border:"none",fontSize:11}},"View"),
-                !r.is_signed&&h("button",{onClick:()=>{setSignId(r.id);setNote("");},className:"btn sm",style:{background:"var(--ok)",color:"#fff",border:"none",fontSize:11}},"Sign"),
+                !r.is_signed&&h("button",{onClick:()=>setSignData(r),className:"btn sm",style:{background:"var(--ok)",color:"#fff",border:"none",fontSize:11}},"Sign"),
                 h("button",{onClick:()=>window.open(API+"/api/reports/"+r.id+"/pdf","_blank"),className:"btn sm teal",style:{color:"#fff",fontSize:11}},"PDF"),
                 h("button",{onClick:()=>sendWA(r.id),className:"btn sm",style:{background:"#25D366",color:"#fff",border:"none",fontSize:11}},"WhatsApp"),
                 h("button",{onClick:()=>sendMail(r.id),className:"btn sm",style:{background:"#1A73E8",color:"#fff",border:"none",fontSize:11}},"Email")

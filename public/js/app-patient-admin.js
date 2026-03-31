@@ -1,4 +1,4 @@
-/* MedPath LIS — Patient Portal + Admin Dashboard */
+/* Nidan LIS — Patient Portal + Admin Dashboard */
 
 function PatientApp({user,onLogout}) {
   const [active,setActive]=useState("dashboard");
@@ -44,7 +44,7 @@ function PatientApp({user,onLogout}) {
     try{
       const rzp=new window.Razorpay({
         key:order.key_id,amount:order.amount,currency:order.currency||"INR",
-        name:"MedPath LIS",description:"Invoice "+inv.invoice_no,order_id:order.order_id,
+        name:"Nidan LIS",description:"Invoice "+inv.invoice_no,order_id:order.order_id,
         handler:async function(response){
           const v=await api("POST","/api/billing/"+inv.id+"/verify-payment",response);
           if(v.invoice){setBills(prev=>prev.map(b=>b.id===inv.id?v.invoice:b));alert("Payment successful!");}
@@ -83,7 +83,7 @@ function PatientApp({user,onLogout}) {
               h("div",{className:"avatar",style:{fontSize:16}},n.icon),
               h("div",null,
                 h("div",{style:{fontWeight:500,fontSize:14,color:"var(--t1)"}},n.label),
-                h("div",{style:{fontSize:11,color:"var(--t3)",fontFamily:"var(--mono)"}},n.id+".medpath.in")
+                h("div",{style:{fontSize:11,color:"var(--t3)",fontFamily:"var(--mono)"}},n.id+".nidan.in")
               )
             ),
             h("div",{style:{color:"var(--p)",fontSize:18}},"›")
@@ -265,7 +265,7 @@ function PatientApp({user,onLogout}) {
         h("div",{style:{background:"linear-gradient(135deg,var(--p),var(--p-mid))",borderRadius:"var(--r-lg)",padding:"18px 20px",color:"#fff",marginBottom:16}},
           h("div",{style:{display:"flex",justifyContent:"space-between",alignItems:"flex-start",flexWrap:"wrap",gap:8}},
             h("div",null,
-              h("div",{style:{fontSize:18,fontWeight:700}},"MedPath Laboratory"),
+              h("div",{style:{fontSize:18,fontWeight:700}},"Nidan Laboratory"),
               h("div",{style:{fontSize:9,opacity:.7,fontFamily:"var(--mono)",marginTop:3}},"NABL ACCREDITED · ISO 15189")
             ),
             h("div",{style:{textAlign:"right"}},
@@ -299,7 +299,7 @@ function PatientApp({user,onLogout}) {
           !viewInvoice.paid&&h("button",{onClick:()=>payOnline(viewInvoice),className:"btn primary",style:{width:"auto",padding:"10px 24px"}},"Pay Online")
         ),
         viewInvoice.paid&&h("div",{style:{marginTop:12,padding:"10px 14px",background:"var(--p-light)",borderRadius:"var(--r-md)",fontSize:12,color:"var(--p)",fontFamily:"var(--mono)"}},"PAID via "+(viewInvoice.payment_mode||"Online")),
-        h("div",{style:{marginTop:16,fontSize:11,color:"var(--t3)",textAlign:"center",fontFamily:"var(--mono)"}},"Thank you for choosing MedPath Laboratory")
+        h("div",{style:{marginTop:16,fontSize:11,color:"var(--t3)",textAlign:"center",fontFamily:"var(--mono)"}},"Thank you for choosing Nidan Laboratory")
       )
     );
 

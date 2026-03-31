@@ -6,9 +6,9 @@ UPDATE users SET username = LOWER(SPLIT_PART(email, '@', 1))
 WHERE role IN ('admin','doctor','technician') AND email IS NOT NULL AND username IS NULL;
 
 -- Set admin username explicitly
-UPDATE users SET username = 'admin' WHERE email = 'admin@medpath.com';
-UPDATE users SET username = 'suresh' WHERE email = 'suresh@medpath.com';
-UPDATE users SET username = 'anita' WHERE email = 'anita@medpath.com';
+UPDATE users SET username = 'admin' WHERE email = 'admin@nidan.com';
+UPDATE users SET username = 'suresh' WHERE email = 'suresh@nidan.com';
+UPDATE users SET username = 'anita' WHERE email = 'anita@nidan.com';
 
 -- Make sure all existing accounts are active and unlocked
 UPDATE users SET 

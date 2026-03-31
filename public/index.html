@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0"/>
-<title>MedPath LIS</title>
+<title>Nidan LIS</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=DM+Sans:wght@300;400;500;600&family=DM+Serif+Display:ital@0;1&display=swap" rel="stylesheet">
 <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
@@ -302,7 +302,7 @@ label{font-size:11px;color:var(--t2);font-weight:500;letter-spacing:.03em;displa
 <div id="root" style="position:relative;z-index:1;"></div>
 <script>
 const {useState,useEffect,useRef,createElement:h} = React;
-const API = "https://medpath-production.up.railway.app";
+const API = "https://nidan-production.up.railway.app";
 let TOKEN = sessionStorage.getItem("mp_token")||null;
 
 async function api(method, path, body) {
@@ -358,7 +358,7 @@ function RoleSelect({onSelect}) {
         h("div",{style:{display:"inline-flex",alignItems:"center",gap:12,marginBottom:16}},
           h("div",{className:"logo-icon",style:{width:48,height:48,fontSize:22}},"🔬"),
           h("div",{style:{textAlign:"left"}},
-            h("div",{className:"logo-text",style:{fontFamily:"var(--serif)",fontSize:26,color:"var(--t1)"}},"MedPath LIS"),
+            h("div",{className:"logo-text",style:{fontFamily:"var(--serif)",fontSize:26,color:"var(--t1)"}},"Nidan LIS"),
             h("div",{className:"logo-sub",style:{fontFamily:"var(--mono)",fontSize:10,color:"var(--t3)",letterSpacing:".06em"}},"LABORATORY INFORMATION SYSTEM")
           )
         ),
@@ -432,7 +432,7 @@ function Login({role,onLogin}) {
       h("div",{style:{display:"flex",alignItems:"center",gap:10,marginBottom:24}},
         h("div",{className:"logo-icon",style:{fontSize:18}},"🔬"),
         h("div",null,
-          h("div",{style:{fontFamily:"var(--serif)",fontSize:20,color:"var(--t1)"}},"MedPath LIS"),
+          h("div",{style:{fontFamily:"var(--serif)",fontSize:20,color:"var(--t1)"}},"Nidan LIS"),
           h("div",{style:{fontFamily:"var(--mono)",fontSize:9,color:"var(--t3)",letterSpacing:".06em",textTransform:"uppercase"}},role+" · Login")
         )
       ),
@@ -512,7 +512,7 @@ function Sidebar({nav,active,setActive,user,onLogout}) {
   return h("div",{className:"sidebar"},
     h("div",{className:"sidebar-logo"},
       h("div",{className:"tag"},"Laboratory LIS"),
-      h("div",{className:"name"},"MedPath"),
+      h("div",{className:"name"},"Nidan"),
       h("div",{className:"sub"},"v2.0 · Live System")
     ),
     h("div",{className:"sidebar-nav"},
@@ -539,7 +539,7 @@ function MobTopbar({user,active,nav,onLogout}) {
   return h("div",{className:"mob-topbar"},
     h("div",{style:{display:"flex",alignItems:"center",gap:9}},
       h("div",{style:{width:30,height:30,background:"linear-gradient(135deg,var(--p),var(--p-mid))",borderRadius:8,display:"flex",alignItems:"center",justifyContent:"center",fontSize:15}},"🔬"),
-      h("div",{style:{fontFamily:"var(--serif)",fontSize:17,color:"var(--t1)"}},"MedPath")
+      h("div",{style:{fontFamily:"var(--serif)",fontSize:17,color:"var(--t1)"}},"Nidan")
     ),
     h("div",{style:{display:"flex",alignItems:"center",gap:10}},
       curr&&h("div",{style:{fontSize:11,color:"var(--t2)",fontFamily:"var(--mono)"}},(curr.icon+" "+curr.label).toLowerCase()),
@@ -595,7 +595,7 @@ function ReportViewer({reportId,onClose,showSendActions}) {
       h("div",{className:"report-header-bar"},
         h("div",{style:{display:"flex",justifyContent:"space-between",alignItems:"flex-start",flexWrap:"wrap",gap:10}},
           h("div",null,
-            h("div",{style:{fontSize:20,fontWeight:700}},"🔬 MedPath Laboratory"),
+            h("div",{style:{fontSize:20,fontWeight:700}},"🔬 Nidan Laboratory"),
             h("div",{style:{fontSize:9,opacity:.75,fontFamily:"var(--mono)",letterSpacing:".08em",marginTop:4}},"NABL ACCREDITED · ISO 15189 · 24×7 LABORATORY SERVICES")
           ),
           h("div",{style:{textAlign:"right"}},
@@ -659,7 +659,7 @@ function ReportViewer({reportId,onClose,showSendActions}) {
             h("div",{style:{marginTop:8}},report.is_signed?h(Badge,{label:"Digitally Verified",type:"ok"}):h(Badge,{label:"Pending Verification",type:"warn"}))
           )
         ),
-        h("div",{style:{marginTop:18,padding:"10px 14px",background:"var(--surface2)",borderRadius:"var(--r-md)",fontSize:11,color:"var(--t3)",textAlign:"center",fontFamily:"var(--mono)"}},"This report is generated electronically by MedPath Laboratory. Results should be interpreted in clinical context.")
+        h("div",{style:{marginTop:18,padding:"10px 14px",background:"var(--surface2)",borderRadius:"var(--r-md)",fontSize:11,color:"var(--t3)",textAlign:"center",fontFamily:"var(--mono)"}},"This report is generated electronically by Nidan Laboratory. Results should be interpreted in clinical context.")
       )
     )
   );

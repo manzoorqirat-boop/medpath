@@ -43,7 +43,7 @@ INSERT INTO system_settings(key,value) VALUES
   ('session_timeout','30'),
   ('temp_pwd_expiry_hrs','24'),
   ('audit_trail','true'),
-  ('lab_name','MedPath Laboratory'),
+  ('lab_name','Nidan Laboratory'),
   ('lab_accreditation','NABL')
 ON CONFLICT (key) DO NOTHING;
 

@@ -43,10 +43,10 @@ async function seed() {
     const adminHash = await bcrypt.hash("admin", 12);
     await client.query(`
       INSERT INTO users(name,email,phone,password_hash,role)
-      VALUES('Admin User','admin@medpath.com','+910000000000',$1,'admin')
+      VALUES('Admin User','admin@nidan.com','+910000000000',$1,'admin')
       ON CONFLICT(email) DO NOTHING`, [adminHash]);
     const { rows: [adminUser] } = await client.query(
-      "SELECT id FROM users WHERE email='admin@medpath.com'");
+      "SELECT id FROM users WHERE email='admin@nidan.com'");
     await client.query(`
       INSERT INTO staff(user_id,staff_no,designation,department,joined_date)
       VALUES($1,'STF-0001','Administrator','Management','2020-01-01')`,
@@ -55,10 +55,10 @@ async function seed() {
     const docHash = await bcrypt.hash("doc123", 12);
     await client.query(`
       INSERT INTO users(name,email,phone,password_hash,role)
-      VALUES('Dr. Anita Sharma','anita@medpath.com','+910000000001',$1,'doctor')
+      VALUES('Dr. Anita Sharma','anita@nidan.com','+910000000001',$1,'doctor')
       ON CONFLICT(email) DO NOTHING`, [docHash]);
     const { rows: [docUser] } = await client.query(
-      "SELECT id FROM users WHERE email='anita@medpath.com'");
+      "SELECT id FROM users WHERE email='anita@nidan.com'");
     await client.query(`
       INSERT INTO staff(user_id,staff_no,designation,department,qualification,joined_date)
       VALUES($1,'STF-0002','Senior Pathologist','Pathology','MD Pathology','2020-06-01')`,
@@ -67,10 +67,10 @@ async function seed() {
     const techHash = await bcrypt.hash("tech123", 12);
     await client.query(`
       INSERT INTO users(name,email,phone,password_hash,role)
-      VALUES('Suresh Teknical','suresh@medpath.com','+910000000002',$1,'technician')
+      VALUES('Suresh Teknical','suresh@nidan.com','+910000000002',$1,'technician')
       ON CONFLICT(email) DO NOTHING`, [techHash]);
     const { rows: [techUser] } = await client.query(
-      "SELECT id FROM users WHERE email='suresh@medpath.com'");
+      "SELECT id FROM users WHERE email='suresh@nidan.com'");
     await client.query(`
       INSERT INTO staff(user_id,staff_no,designation,department,joined_date)
       VALUES($1,'STF-0003','Lab Technician','Biochemistry','2021-06-15')`,
@@ -94,9 +94,9 @@ async function seed() {
     await client.query("COMMIT");
     console.log("Seed complete!");
     console.log("Patient: +919876543210  OTP: 123456");
-    console.log("Admin: admin@medpath.com / admin");
-    console.log("Doctor: anita@medpath.com / doc123");
-    console.log("Tech: suresh@medpath.com / tech123");
+    console.log("Admin: admin@nidan.com / admin");
+    console.log("Doctor: anita@nidan.com / doc123");
+    console.log("Tech: suresh@nidan.com / tech123");
   } catch (err) {
     await client.query("ROLLBACK");
     console.error("Seed failed:", err.message);

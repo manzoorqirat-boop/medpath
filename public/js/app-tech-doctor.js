@@ -1,4 +1,4 @@
-/* MedPath LIS — Technician + Doctor + Session + App Root */
+/* Nidan LIS — Technician + Doctor + Session + App Root */
 
 function TechApp({user,onLogout}) {
   const [active,setActive]=useState("dashboard");

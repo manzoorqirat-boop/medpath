@@ -195,11 +195,11 @@ router.post("/:reportId/send-email", authorize("admin","doctor"), async (req, re
 
     const sent = await sendEmail({
       to: r.patient_email,
-      subject: `Lab Report Ready – ${r.report_no} | MedPath`,
+      subject: `Lab Report Ready – ${r.report_no} | Nidan`,
       html: `
 <div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;background:#f5f7f6;">
   <div style="background:linear-gradient(135deg,#0A5C47,#0F7A5E);padding:28px 32px;border-radius:12px 12px 0 0;">
-    <div style="color:#fff;font-size:20px;font-weight:700;">🔬 MedPath Laboratory</div>
+    <div style="color:#fff;font-size:20px;font-weight:700;">🔬 Nidan Laboratory</div>
     <div style="color:rgba(255,255,255,.7);font-size:11px;margin-top:4px;">NABL ACCREDITED · ISO 15189</div>
   </div>
   <div style="background:#fff;padding:28px 32px;border:1px solid #e0e8e4;border-top:none;border-radius:0 0 12px 12px;">
@@ -212,7 +212,7 @@ router.post("/:reportId/send-email", authorize("admin","doctor"), async (req, re
       <div style="margin-bottom:6px;"><span style="color:#8A9590;width:130px;display:inline-block;">Verified By</span> <strong>${r.pathologist_name||"Lab Pathologist"}</strong></div>
     </div>
     <p style="font-size:13px;color:#5A6560;margin-bottom:20px;">
-      <a href="${process.env.APP_URL || "https://medpath-production.up.railway.app"}/reports/${r.report_no}" 
+      <a href="${process.env.APP_URL || "https://nidan-production.up.railway.app"}/reports/${r.report_no}" 
          style="background:#0A5C47;color:#fff;padding:10px 20px;text-decoration:none;border-radius:4px;display:inline-block;margin-top:10px;">
         View My Report
       </a>
@@ -246,12 +246,12 @@ router.get("/:reportId/whatsapp-link", authorize("admin","doctor","technician"),
     const phone = (r.patient_phone||"").replace(/\D/g,"");
     const msg =
       `Dear ${r.patient_name},\n\n`+
-      `Your MedPath Lab Report is ready.\n\n`+
+      `Your Nidan Lab Report is ready.\n\n`+
       `🔬 Report No: ${r.report_no}\n`+
       `🧪 Test: ${r.test_name}\n`+
       `🆔 Patient No: ${r.patient_no}\n\n`+
       `Please log in to the patient portal to view, download or print your report.\n\n`+
-      `– MedPath Laboratory`;
+      `– Nidan Laboratory`;
     const link = phone
       ? `https://wa.me/${phone}?text=${encodeURIComponent(msg)}`
       : `https://wa.me/?text=${encodeURIComponent(msg)}`;
@@ -298,7 +298,7 @@ router.get("/:reportId/pdf", async (req, res, next) => {
 
     // Header bar
     doc.rect(0,0,doc.page.width,70).fill(G);
-    doc.fill("#fff").font("Helvetica-Bold").fontSize(18).text("MedPath Laboratory",50,16);
+    doc.fill("#fff").font("Helvetica-Bold").fontSize(18).text("Nidan Laboratory",50,16);
     doc.font("Helvetica").fontSize(8.5).fill("rgba(255,255,255,0.7)")
        .text("NABL Accredited · ISO 15189 · 24×7 Laboratory Services",50,38);
     doc.fill("#fff").fontSize(8.5)
@@ -386,7 +386,7 @@ router.get("/:reportId/pdf", async (req, res, next) => {
     const fy = doc.page.height-42;
     doc.moveTo(50,fy-8).lineTo(50+W,fy-8).stroke("#ccc");
     doc.fill("#aaa").font("Helvetica").fontSize(7.5)
-       .text("This report is generated electronically by MedPath Laboratory. Results should be interpreted in clinical context. support@medpath.in",
+       .text("This report is generated electronically by Nidan Laboratory. Results should be interpreted in clinical context. support@nidan.in",
          50,fy,{align:"center",width:W});
     doc.end();
   } catch (err) { next(err); }

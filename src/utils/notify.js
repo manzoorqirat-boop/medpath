@@ -18,7 +18,7 @@ async function sendEmail({ to, subject, html, text }) {
   }
   try {
     await transporter.sendMail({
-      from: `"MedPath Lab" <${process.env.SMTP_USER}>`,
+      from: `"Nidan Lab" <${process.env.SMTP_USER}>`,
       to, subject, html, text,
     });
     return true;
@@ -52,26 +52,26 @@ async function sendSMS({ to, message }) {
 }
 
 async function notifyReportReady({ name, phone, email, sampleNo, testNames }) {
-  const msg = `MedPath: Hi ${name}, your report for ${testNames.join(", ")} (${sampleNo}) is ready.`;
+  const msg = `Nidan: Hi ${name}, your report for ${testNames.join(", ")} (${sampleNo}) is ready.`;
   await sendSMS({ to: phone, message: msg });
-  await sendEmail({ to: email, subject: "Your Lab Report is Ready – MedPath", html: `<p>Dear <b>${name}</b>, your report is ready.</p>` });
+  await sendEmail({ to: email, subject: "Your Lab Report is Ready – Nidan", html: `<p>Dear <b>${name}</b>, your report is ready.</p>` });
 }
 
 async function notifyPaymentSuccess({ name, phone, email, invoiceNo, amount }) {
-  const msg = `MedPath: Payment of Rs.${amount} received for invoice ${invoiceNo}.`;
+  const msg = `Nidan: Payment of Rs.${amount} received for invoice ${invoiceNo}.`;
   await sendSMS({ to: phone, message: msg });
   await sendEmail({ to: email, subject: `Payment Confirmed – ${invoiceNo}`, html: `<p>Payment of ₹${amount} received.</p>` });
 }
 
 async function notifyOTP({ phone, otp }) {
-  const msg = `MedPath OTP: ${otp} is your login code. Valid for 10 minutes.`;
+  const msg = `Nidan OTP: ${otp} is your login code. Valid for 10 minutes.`;
   await sendSMS({ to: phone, message: msg });
 }
 
 async function notifyHomeCollection({ name, phone, email, date, slot, address }) {
-  const msg = `MedPath: Home collection confirmed for ${date} at ${slot}. Address: ${address}`;
+  const msg = `Nidan: Home collection confirmed for ${date} at ${slot}. Address: ${address}`;
   await sendSMS({ to: phone, message: msg });
-  await sendEmail({ to: email, subject: "Home Collection Scheduled – MedPath", html: `<p>Collection on ${date} at ${slot}.</p>` });
+  await sendEmail({ to: email, subject: "Home Collection Scheduled – Nidan", html: `<p>Collection on ${date} at ${slot}.</p>` });
 }
 
 module.exports = { sendEmail, sendSMS, notifyReportReady, notifyPaymentSuccess, notifyOTP, notifyHomeCollection };

@@ -1,7 +1,8 @@
 /* Nidan LIS — Technician + Doctor + Session + App Root */
 
 function TechApp({user,onLogout}) {
-  const [active,setActive]=useState("dashboard");
+  const [active,setActive]=useState(()=>localStorage.getItem("mp_page_tech")||"dashboard");
+  function goTo(p){localStorage.setItem("mp_page_tech",p);setActive(p);}
   const [samples,setSamples]=useState([]);
   const [allSamples,setAllSamples]=useState([]);
   const [selected,setSelected]=useState(null);
@@ -317,11 +318,12 @@ function TechApp({user,onLogout}) {
   }
 
   const pages={dashboard:h(Dashboard),results:h(Results),all:h(AllSamples)};
-  return h(AppShell,{nav,active,setActive,user,onLogout},pages[active]||pages.dashboard);
+  return h(AppShell,{nav,active,setActive:goTo,user,onLogout},pages[active]||pages.dashboard);
 }
 
 function DoctorApp({user,onLogout}) {
-  const [active,setActive]=useState("dashboard");
+  const [active,setActive]=useState(()=>localStorage.getItem("mp_page_doctor")||"dashboard");
+  function goTo(p){localStorage.setItem("mp_page_doctor",p);setActive(p);}
   const [samples,setSamples]=useState([]);
   const nav=[
     {id:"dashboard",icon:"🏠",label:"Dashboard"},
@@ -369,7 +371,7 @@ function DoctorApp({user,onLogout}) {
       h("div",{className:"card"},
         h("div",{style:{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12}},
           h("div",{className:"section-title",style:{marginBottom:0}},"Pending Sign-off"),
-          pending.length>0&&h("button",{onClick:()=>setActive("reports"),className:"btn sm",style:{background:"var(--ok)",color:"#fff",border:"none"}},"Go to Reports →")
+          pending.length>0&&h("button",{onClick:()=>goTo("reports"),className:"btn sm",style:{background:"var(--ok)",color:"#fff",border:"none"}},"Go to Reports →")
         ),
         dashLoading&&h(Spinner),
         !dashLoading&&pending.length===0&&h("div",{style:{textAlign:"center",padding:24,color:"var(--t3)",fontFamily:"var(--mono)",fontSize:12}},"✓ ALL CLEAR — No reports pending sign-off"),
@@ -383,7 +385,7 @@ function DoctorApp({user,onLogout}) {
           ),
           h("div",{style:{display:"flex",gap:8,alignItems:"center"}},
             h(Badge,{label:"Pending",type:"warn"}),
-            h("button",{onClick:()=>setActive("reports"),className:"btn sm",style:{background:"var(--ok)",color:"#fff",border:"none"}},"Review →")
+            h("button",{onClick:()=>goTo("reports"),className:"btn sm",style:{background:"var(--ok)",color:"#fff",border:"none"}},"Review →")
           )
         ))
       )
@@ -531,7 +533,7 @@ function DoctorApp({user,onLogout}) {
   }
 
   const pages={dashboard:h(Dashboard),reports:h(DoctorReports),patients:h(DoctorPatients)};
-  return h(AppShell,{nav,active,setActive,user,onLogout},pages[active]||pages.dashboard);
+  return h(AppShell,{nav,active,setActive:goTo,user,onLogout},pages[active]||pages.dashboard);
 }
 
 
@@ -657,21 +659,21 @@ function ChangePasswordModal({userId, onSuccess, onCancel, reason}) {
 }
 
 function App() {
-  const [role,setRole]=useState(()=>{return sessionStorage.getItem("mp_role")||null;});
-  const [user,setUser]=useState(()=>{try{const u=sessionStorage.getItem("mp_user");return u?JSON.parse(u):null;}catch(e){return null;}});
+  const [role,setRole]=useState(()=>{return localStorage.getItem("mp_role")||null;});
+  const [user,setUser]=useState(()=>{try{const u=localStorage.getItem("mp_user");return u?JSON.parse(u):null;}catch(e){return null;}});
   const [changePwd,setChangePwd]=useState(null); // {userId, reason}
 
   function handleLogin(u,back){
-    if(back){setRole(null);setUser(null);TOKEN=null;sessionStorage.clear();}
+    if(back){setRole(null);setUser(null);TOKEN=null;["mp_token","mp_user","mp_role","mp_page_patient","mp_page_admin","mp_page_tech","mp_page_doctor"].forEach(k=>localStorage.removeItem(k));}
     else{
       const r=u.role==="patient"?"Patient":u.role.charAt(0).toUpperCase()+u.role.slice(1);
       setUser(u);setRole(r);
-      sessionStorage.setItem("mp_user",JSON.stringify(u));
-      sessionStorage.setItem("mp_role",r);
+      localStorage.setItem("mp_user",JSON.stringify(u));
+      localStorage.setItem("mp_role",r);
       if(u.mustChangePassword){setChangePwd({userId:u.id,reason:u.reason});}
     }
   }
-  function handleLogout(){setUser(null);setRole(null);TOKEN=null;sessionStorage.clear();setChangePwd(null);}
+  function handleLogout(){setUser(null);setRole(null);TOKEN=null;["mp_token","mp_user","mp_role","mp_page_patient","mp_page_admin","mp_page_tech","mp_page_doctor"].forEach(k=>localStorage.removeItem(k));setChangePwd(null);}
 
   if(!role) return h(RoleSelect,{onSelect:setRole});
   if(!user) return h(Login,{role,onLogin:handleLogin});

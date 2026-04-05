@@ -304,7 +304,7 @@ label{font-size:11px;color:var(--t2);font-weight:500;letter-spacing:.03em;displa
 <script>
 const {useState,useEffect,useRef,createElement:h} = React;
 const API = "https://medpath-production.up.railway.app";
-let TOKEN = sessionStorage.getItem("mp_token")||null;
+let TOKEN = localStorage.getItem("mp_token")||null;
 
 async function api(method, path, body) {
   const headers = {"Content-Type":"application/json"};
@@ -406,9 +406,9 @@ function Login({role,onLogin}) {
     if(data.error==="Network error"){setErr("Cannot reach server. Try again.");return;}
     if(data.token){
       TOKEN=data.token;
-      sessionStorage.setItem("mp_token",data.token);
-      sessionStorage.setItem("mp_user",JSON.stringify({...data.user,patientId:data.user.patientId}));
-      sessionStorage.setItem("mp_role","Patient");
+      localStorage.setItem("mp_token",data.token);
+      localStorage.setItem("mp_user",JSON.stringify({...data.user,patientId:data.user.patientId}));
+      localStorage.setItem("mp_role","Patient");
       onLogin({...data.user,patientId:data.user.patientId});
     }
     else if(data.error==="Name required for new registration"){setStep(3);setErr("");}
@@ -419,7 +419,7 @@ function Login({role,onLogin}) {
     setLoading(true);setErr("");
     const data=await api("POST","/api/auth/login",{email:staffEmail.trim(),password:pw});
     setLoading(false);
-    if(data.token){TOKEN=data.token;sessionStorage.setItem("mp_token",data.token);sessionStorage.setItem("mp_user",JSON.stringify(data.user));sessionStorage.setItem("mp_role",data.user.role.charAt(0).toUpperCase()+data.user.role.slice(1));onLogin(data.user);}
+    if(data.token){TOKEN=data.token;localStorage.setItem("mp_token",data.token);localStorage.setItem("mp_user",JSON.stringify(data.user));localStorage.setItem("mp_role",data.user.role.charAt(0).toUpperCase()+data.user.role.slice(1));onLogin(data.user);}
     else setErr(data.error||"Invalid credentials.");
   }
 

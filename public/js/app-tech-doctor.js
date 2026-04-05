@@ -1,8 +1,7 @@
 /* Nidan LIS — Technician + Doctor + Session + App Root */
 
 function TechApp({user,onLogout}) {
-  const [active,setActive]=useState(()=>localStorage.getItem("mp_page_tech")||"dashboard");
-  function goTo(p){localStorage.setItem("mp_page_tech",p);setActive(p);}
+  const [active,setActive]=useState("dashboard");
   const [samples,setSamples]=useState([]);
   const [allSamples,setAllSamples]=useState([]);
   const [selected,setSelected]=useState(null);
@@ -318,12 +317,11 @@ function TechApp({user,onLogout}) {
   }
 
   const pages={dashboard:h(Dashboard),results:h(Results),all:h(AllSamples)};
-  return h(AppShell,{nav,active,setActive:goTo,user,onLogout},pages[active]||pages.dashboard);
+  return h(AppShell,{nav,active,setActive,user,onLogout},pages[active]||pages.dashboard);
 }
 
 function DoctorApp({user,onLogout}) {
-  const [active,setActive]=useState(()=>localStorage.getItem("mp_page_doctor")||"dashboard");
-  function goTo(p){localStorage.setItem("mp_page_doctor",p);setActive(p);}
+  const [active,setActive]=useState("dashboard");
   const [samples,setSamples]=useState([]);
   const nav=[
     {id:"dashboard",icon:"🏠",label:"Dashboard"},
@@ -371,7 +369,7 @@ function DoctorApp({user,onLogout}) {
       h("div",{className:"card"},
         h("div",{style:{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12}},
           h("div",{className:"section-title",style:{marginBottom:0}},"Pending Sign-off"),
-          pending.length>0&&h("button",{onClick:()=>goTo("reports"),className:"btn sm",style:{background:"var(--ok)",color:"#fff",border:"none"}},"Go to Reports →")
+          pending.length>0&&h("button",{onClick:()=>setActive("reports"),className:"btn sm",style:{background:"var(--ok)",color:"#fff",border:"none"}},"Go to Reports →")
         ),
         dashLoading&&h(Spinner),
         !dashLoading&&pending.length===0&&h("div",{style:{textAlign:"center",padding:24,color:"var(--t3)",fontFamily:"var(--mono)",fontSize:12}},"✓ ALL CLEAR — No reports pending sign-off"),
@@ -385,7 +383,7 @@ function DoctorApp({user,onLogout}) {
           ),
           h("div",{style:{display:"flex",gap:8,alignItems:"center"}},
             h(Badge,{label:"Pending",type:"warn"}),
-            h("button",{onClick:()=>goTo("reports"),className:"btn sm",style:{background:"var(--ok)",color:"#fff",border:"none"}},"Review →")
+            h("button",{onClick:()=>setActive("reports"),className:"btn sm",style:{background:"var(--ok)",color:"#fff",border:"none"}},"Review →")
           )
         ))
       )
@@ -452,39 +450,138 @@ function DoctorApp({user,onLogout}) {
     const [reports,setReports]=useState([]);
     const [loading,setLoading]=useState(true);
     const [viewId,setViewId]=useState(null);
-    const [signData,setSignData]=useState(null);
+    const [signSample,setSignSample]=useState(null); // {sampleId, sampleNo, patientName, reports[]}
     const [msg,setMsg]=useState("");
-    useEffect(()=>{api("GET","/api/reports/all").then(d=>{if(d.reports)setReports(d.reports);else setReports([]);setLoading(false);}).catch(()=>setLoading(false));},[]);
+
+    function loadReports(){
+      setLoading(true);
+      api("GET","/api/reports/all").then(d=>{
+        if(d.reports)setReports(d.reports);
+        else setReports([]);
+        setLoading(false);
+      }).catch(()=>setLoading(false));
+    }
+    useEffect(()=>{loadReports();},[]);
+
+    // Group reports by sample_no
+    const grouped=[];
+    const seen={};
+    for(const r of reports){
+      const key=r.sample_no;
+      if(!seen[key]){
+        seen[key]={sample_no:r.sample_no,patient_name:r.patient_name,patient_no:r.patient_no,created_at:r.created_at,reports:[]};
+        grouped.push(seen[key]);
+      }
+      seen[key].reports.push(r);
+    }
+
     async function sendWA(id){const r=await api("GET","/api/reports/"+id+"/whatsapp-link");if(r.link)window.open(r.link,"_blank");else setMsg(r.error||"Failed");}
     async function sendMail(id){const r=await api("POST","/api/reports/"+id+"/send-email",{});setMsg(r.message||r.error||"");}
+
     if(viewId)return h(ReportViewer,{reportId:viewId,onClose:()=>setViewId(null),showSendActions:true});
-    if(signData)return h(SignPage,{reportId:signData.id,reportInfo:signData,onBack:()=>setSignData(null),onSigned:(id)=>{setReports(prev=>prev.map(r=>r.id===id?{...r,is_signed:true}:r));setSignData(null);}});
+    if(signSample)return h(SignAllPage,{
+      sampleId:signSample.sampleId,
+      sampleNo:signSample.sampleNo,
+      patientName:signSample.patientName,
+      reports:signSample.reports,
+      user,
+      onBack:()=>setSignSample(null),
+      onSigned:()=>{setSignSample(null);loadReports();}
+    });
+
     return h("div",{className:"fade-in"},
       h("div",{className:"page-header"},h("div",{className:"page-title"},"Reports Management"),h("div",{className:"page-sub"},"verify, dispatch and share reports")),
       msg&&h("div",{className:"alert "+(msg.includes("Error")||msg.includes("failed")?"alert-err":"alert-ok")},msg),
       loading&&h(Spinner),
-      !loading&&reports.length===0&&h("div",{className:"card",style:{textAlign:"center",padding:40}},h("div",{style:{fontSize:44,marginBottom:8}},"📊"),h("p",{style:{color:"var(--t3)"}},"No reports yet.")),
-      reports.length>0&&h("div",{className:"card",style:{padding:0,overflow:"visible"}},
-        h("div",{className:"table-wrap"},
-          h("table",{className:"glass-table"},
-            h("thead",null,h("tr",null,["Report No","Patient","Test","Date","Status","Actions"].map(c=>h("th",{key:c},c)))),
-            h("tbody",null,reports.map(r=>h("tr",{key:r.id},
-              h("td",{style:{fontFamily:"var(--mono)",fontWeight:700,color:"var(--p)",fontSize:12}},r.report_no||"—"),
-              h("td",null,h("div",{style:{fontWeight:500,fontSize:13}},r.patient_name),h("div",{style:{fontSize:10,color:"var(--t3)",fontFamily:"var(--mono)"}},r.patient_no)),
-              h("td",{style:{fontSize:12,color:"var(--t2)"}},r.test_name),
-              h("td",{style:{fontSize:11,color:"var(--t3)",fontFamily:"var(--mono)"}},new Date(r.created_at).toLocaleDateString("en-IN")),
-              h("td",null,r.is_signed?h(Badge,{label:"Verified",type:"ok"}):h(Badge,{label:"Pending",type:"warn"})),
-              h("td",null,h("div",{style:{display:"flex",gap:4,flexWrap:"wrap"}},
-                h("button",{onClick:()=>setViewId(r.id),className:"btn sm",style:{background:"var(--p)",color:"#fff",border:"none",fontSize:11}},"View"),
-                !r.is_signed&&h("button",{onClick:()=>setSignData(r),className:"btn sm",style:{background:"var(--ok)",color:"#fff",border:"none",fontSize:11}},"Sign"),
-                h("button",{onClick:()=>window.open(API+"/api/reports/"+r.id+"/pdf","_blank"),className:"btn sm teal",style:{color:"#fff",fontSize:11}},"PDF"),
-                h("button",{onClick:()=>sendWA(r.id),className:"btn sm",style:{background:"#25D366",color:"#fff",border:"none",fontSize:11}},"WhatsApp"),
-                h("button",{onClick:()=>sendMail(r.id),className:"btn sm",style:{background:"#1A73E8",color:"#fff",border:"none",fontSize:11}},"Email")
+      !loading&&grouped.length===0&&h("div",{className:"card",style:{textAlign:"center",padding:40}},h("div",{style:{fontSize:44,marginBottom:8}},"📊"),h("p",{style:{color:"var(--t3)"}},"No reports yet.")),
+      !loading&&grouped.map(grp=>{
+        const allSigned=grp.reports.every(r=>r.is_signed);
+        const someSigned=grp.reports.some(r=>r.is_signed);
+        // Get sample_id from first report (need it for sign-all)
+        const sampleId=grp.reports[0]&&grp.reports[0].sample_id;
+        return h("div",{key:grp.sample_no,className:"card",style:{marginBottom:16,padding:0,overflow:"visible"}},
+          // Sample header row
+          h("div",{style:{padding:"12px 16px",borderBottom:"1px solid var(--b2)",display:"flex",alignItems:"center",justifyContent:"space-between",flexWrap:"wrap",gap:8}},
+            h("div",null,
+              h("div",{style:{fontWeight:700,fontSize:14}},grp.patient_name),
+              h("div",{style:{fontSize:11,color:"var(--t3)",fontFamily:"var(--mono)"}},grp.sample_no+" · "+grp.patient_no+" · "+new Date(grp.created_at).toLocaleDateString("en-IN"))
+            ),
+            h("div",{style:{display:"flex",gap:6,alignItems:"center",flexWrap:"wrap"}},
+              allSigned
+                ?h(Badge,{label:"All Verified ✓",type:"ok"})
+                :h(Badge,{label:someSigned?"Partial":"Pending",type:someSigned?"warn":"warn"}),
+              !allSigned&&h("button",{
+                onClick:()=>setSignSample({sampleId,sampleNo:grp.sample_no,patientName:grp.patient_name,reports:grp.reports}),
+                className:"btn sm",style:{background:"var(--ok)",color:"#fff",border:"none",fontSize:11,whiteSpace:"nowrap"}
+              },"✅ Sign All Tests")
+            )
+          ),
+          // Tests sub-table
+          h("div",{style:{overflowX:"auto"}},
+            h("table",{className:"glass-table",style:{margin:0}},
+              h("thead",null,h("tr",null,["Report No","Test","Results","Status","Actions"].map(col=>h("th",{key:col,style:{fontSize:11}},col)))),
+              h("tbody",null,grp.reports.map(r=>
+                h("tr",{key:r.id},
+                  h("td",{style:{fontFamily:"var(--mono)",fontWeight:700,color:"var(--p)",fontSize:11}},r.report_no||"—"),
+                  h("td",{style:{fontSize:12,fontWeight:500}},r.test_name),
+                  h("td",{style:{fontSize:11,color:"var(--t3)"}},
+                    r.results&&r.results.length>0
+                      ?r.results.length+" parameter"+(r.results.length!==1?"s":"")
+                      :h("span",{style:{color:"var(--warn)"},"aria-label":"pending"},"awaiting entry")
+                  ),
+                  h("td",null,r.is_signed?h(Badge,{label:"Verified",type:"ok"}):h(Badge,{label:"Pending",type:"warn"})),
+                  h("td",null,h("div",{style:{display:"flex",gap:4,flexWrap:"wrap"}},
+                    h("button",{onClick:()=>setViewId(r.id),className:"btn sm",style:{background:"var(--p)",color:"#fff",border:"none",fontSize:10}},"View"),
+                    h("button",{onClick:()=>window.open(API+"/api/reports/"+r.id+"/pdf","_blank"),className:"btn sm teal",style:{color:"#fff",fontSize:10}},"PDF"),
+                    h("button",{onClick:()=>sendWA(r.id),className:"btn sm",style:{background:"#25D366",color:"#fff",border:"none",fontSize:10}},"WA"),
+                    h("button",{onClick:()=>sendMail(r.id),className:"btn sm",style:{background:"#1A73E8",color:"#fff",border:"none",fontSize:10}},"Email")
+                  ))
+                )
               ))
-            )))
+            )
           )
-        )
-      )
+        );
+      })
+    );
+  }
+
+  function SignAllPage({sampleId,sampleNo,patientName,reports,user,onBack,onSigned}) {
+    const [note,setNote]=useState("");
+    const [saving,setSaving]=useState(false);
+    const [msg,setMsg]=useState("");
+    const unsigned=reports.filter(r=>!r.is_signed);
+    async function doSignAll(){
+      setSaving(true);setMsg("");
+      const d=await api("PATCH","/api/reports/sample/"+sampleId+"/sign-all",{pathologist_note:note});
+      setSaving(false);
+      if(d.success){setMsg("All "+d.signed+" report(s) verified!");setTimeout(()=>onSigned(),1200);}
+      else setMsg("Error: "+(d.error||"Unknown"));
+    }
+    return h("div",{className:"fade-in",style:{padding:"16px"}},
+      h("div",{style:{display:"flex",alignItems:"center",gap:10,marginBottom:20}},
+        h("button",{onClick:onBack,className:"btn sm"},"← Back"),
+        h("div",{style:{fontWeight:700,fontSize:17}},"Sign All Reports")
+      ),
+      h("div",{style:{background:"var(--surface2)",borderRadius:"var(--r-md)",padding:"12px 14px",marginBottom:16,fontSize:13}},
+        h("div",{style:{fontWeight:600,marginBottom:6}},patientName," · ",h("span",{style:{fontFamily:"var(--mono)",color:"var(--p)"}},sampleNo)),
+        h("div",{style:{fontSize:12,color:"var(--t3)",marginBottom:8}},unsigned.length+" unsigned test"+(unsigned.length!==1?"s":"")),
+        unsigned.map(r=>h("div",{key:r.id,style:{display:"flex",justifyContent:"space-between",padding:"6px 0",borderTop:"1px solid var(--b2)",fontSize:13}},
+          h("span",{style:{fontWeight:500}},r.test_name),
+          h("span",{style:{fontFamily:"var(--mono)",fontSize:11,color:"var(--p)"}},r.report_no)
+        ))
+      ),
+      h("div",{style:{background:"var(--p-light)",borderRadius:"var(--r-md)",padding:"12px 14px",marginBottom:16}},
+        h("div",{style:{fontSize:11,fontWeight:600,color:"var(--p)",fontFamily:"var(--mono)",marginBottom:4}},"SIGNING AS"),
+        h("div",{style:{fontSize:14,fontWeight:600}},user.name),
+        h("div",{style:{fontSize:12,color:"var(--t2)"}},user.designation||"Pathologist"),
+        h("div",{style:{fontSize:11,color:"var(--t3)",fontFamily:"var(--mono)"}},new Date().toLocaleDateString("en-IN")+" · "+new Date().toLocaleTimeString("en-IN",{hour:"2-digit",minute:"2-digit"}))
+      ),
+      h("div",{className:"form-group",style:{marginBottom:16}},
+        h("label",{style:{display:"block",marginBottom:6,fontSize:13,fontWeight:500}},"Pathologist Remarks (optional — applies to all tests)"),
+        h("textarea",{value:note,onChange:e=>setNote(e.target.value),rows:4,placeholder:"All values within normal limits...",style:{width:"100%",padding:"10px 12px",borderRadius:"var(--r-md)",border:"1px solid var(--b2)",fontSize:13,fontFamily:"var(--sans)",resize:"vertical",boxSizing:"border-box"}})
+      ),
+      msg&&h("div",{className:"alert "+(msg.includes("Error")?"alert-err":"alert-ok"),style:{marginBottom:12}},msg),
+      h("button",{onClick:doSignAll,disabled:saving,className:"btn primary",style:{width:"100%",padding:"14px",fontSize:15,fontWeight:600}},saving?"Signing...":"✅ Sign & Verify All "+unsigned.length+" Test"+(unsigned.length!==1?"s":""))
     );
   }
 
@@ -533,7 +630,7 @@ function DoctorApp({user,onLogout}) {
   }
 
   const pages={dashboard:h(Dashboard),reports:h(DoctorReports),patients:h(DoctorPatients)};
-  return h(AppShell,{nav,active,setActive:goTo,user,onLogout},pages[active]||pages.dashboard);
+  return h(AppShell,{nav,active,setActive,user,onLogout},pages[active]||pages.dashboard);
 }
 
 
@@ -659,21 +756,21 @@ function ChangePasswordModal({userId, onSuccess, onCancel, reason}) {
 }
 
 function App() {
-  const [role,setRole]=useState(()=>{return localStorage.getItem("mp_role")||null;});
-  const [user,setUser]=useState(()=>{try{const u=localStorage.getItem("mp_user");return u?JSON.parse(u):null;}catch(e){return null;}});
+  const [role,setRole]=useState(()=>{return sessionStorage.getItem("mp_role")||null;});
+  const [user,setUser]=useState(()=>{try{const u=sessionStorage.getItem("mp_user");return u?JSON.parse(u):null;}catch(e){return null;}});
   const [changePwd,setChangePwd]=useState(null); // {userId, reason}
 
   function handleLogin(u,back){
-    if(back){setRole(null);setUser(null);TOKEN=null;["mp_token","mp_user","mp_role","mp_page_patient","mp_page_admin","mp_page_tech","mp_page_doctor"].forEach(k=>localStorage.removeItem(k));}
+    if(back){setRole(null);setUser(null);TOKEN=null;sessionStorage.clear();}
     else{
       const r=u.role==="patient"?"Patient":u.role.charAt(0).toUpperCase()+u.role.slice(1);
       setUser(u);setRole(r);
-      localStorage.setItem("mp_user",JSON.stringify(u));
-      localStorage.setItem("mp_role",r);
+      sessionStorage.setItem("mp_user",JSON.stringify(u));
+      sessionStorage.setItem("mp_role",r);
       if(u.mustChangePassword){setChangePwd({userId:u.id,reason:u.reason});}
     }
   }
-  function handleLogout(){setUser(null);setRole(null);TOKEN=null;["mp_token","mp_user","mp_role","mp_page_patient","mp_page_admin","mp_page_tech","mp_page_doctor"].forEach(k=>localStorage.removeItem(k));setChangePwd(null);}
+  function handleLogout(){setUser(null);setRole(null);TOKEN=null;sessionStorage.clear();setChangePwd(null);}
 
   if(!role) return h(RoleSelect,{onSelect:setRole});
   if(!user) return h(Login,{role,onLogin:handleLogin});

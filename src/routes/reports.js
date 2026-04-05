@@ -48,7 +48,7 @@ router.get("/sample/:sampleId", async (req, res, next) => {
 router.get("/all", authorize("admin","doctor"), async (req, res, next) => {
   try {
     const { rows } = await query(`
-      SELECT r.id,r.report_no,r.is_signed,r.signed_at,r.created_at,
+      SELECT r.id,r.report_no,r.is_signed,r.signed_at,r.created_at,r.sample_id,
              tc.name test_name,tc.code,s.sample_no,
              u.name patient_name,u.phone patient_phone,u.email patient_email,
              p.patient_no,p.date_of_birth,p.gender,p.blood_group,
@@ -438,6 +438,53 @@ router.get("/sample/:sampleId/submitted", authorize("technician","admin","doctor
     }
     res.json({ reports: rows, submitted: rows.length > 0 });
   } catch(err) { next(err); }
+});
+
+
+/* GET /api/reports/sample/:sampleId/all — All reports for a sample (Doctor grouped view) */
+router.get("/sample/:sampleId/all", authorize("doctor","admin"), async (req, res, next) => {
+  try {
+    const { rows: reports } = await query(`
+      SELECT r.id,r.report_no,r.is_signed,r.signed_at,r.tech_notes,r.pathologist_note,
+             r.edit_requested,r.edit_approved,r.created_at,
+             tc.name test_name,tc.code,tc.category,
+             tu.name tech_name,pu.name pathologist_name,
+             u.name patient_name,u.phone patient_phone,u.email patient_email,
+             p.patient_no,p.date_of_birth,p.gender,p.blood_group,
+             s.sample_no,s.collected_at,s.collection_type,s.status sample_status
+      FROM reports r
+      JOIN test_catalogue tc ON tc.id=r.test_id
+      JOIN samples s ON s.id=r.sample_id
+      JOIN patients p ON p.id=s.patient_id
+      JOIN users u ON u.id=p.user_id
+      LEFT JOIN users tu ON tu.id=r.technician_id
+      LEFT JOIN users pu ON pu.id=r.pathologist_id
+      WHERE r.sample_id=$1 ORDER BY r.created_at`, [req.params.sampleId]);
+    for (const rpt of reports) {
+      const { rows } = await query(
+        "SELECT * FROM report_results WHERE report_id=$1 ORDER BY created_at", [rpt.id]);
+      rpt.results = rows;
+    }
+    res.json({ reports });
+  } catch (err) { next(err); }
+});
+
+/* PATCH /api/reports/sample/:sampleId/sign-all — Doctor signs all reports for a sample */
+router.patch("/sample/:sampleId/sign-all", authorize("doctor","admin"), async (req, res, next) => {
+  try {
+    const { pathologist_note } = req.body;
+    const { rows: reports } = await query(
+      "SELECT id FROM reports WHERE sample_id=$1 AND is_signed=false",
+      [req.params.sampleId]);
+    if (!reports.length) return res.status(404).json({ error: "No unsigned reports found for this sample" });
+    for (const rpt of reports) {
+      await query(
+        `UPDATE reports SET pathologist_id=$1,pathologist_note=$2,is_signed=true,signed_at=NOW(),updated_at=NOW() WHERE id=$3`,
+        [req.user.id, pathologist_note||null, rpt.id]);
+    }
+    await query("UPDATE samples SET status='Dispatched' WHERE id=$1", [req.params.sampleId]);
+    res.json({ success: true, signed: reports.length });
+  } catch (err) { next(err); }
 });
 
 module.exports = router;

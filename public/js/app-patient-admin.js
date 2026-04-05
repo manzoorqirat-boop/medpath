@@ -1,7 +1,8 @@
 /* Nidan LIS — Patient Portal + Admin Dashboard */
 
 function PatientApp({user,onLogout}) {
-  const [active,setActive]=useState("dashboard");
+  const [active,setActive]=useState(()=>localStorage.getItem("mp_page_patient")||"dashboard");
+  function goTo(p){localStorage.setItem("mp_page_patient",p);setActive(p);}
   const [cart,setCart]=useState([]);
   const [tests,setTests]=useState([]);
   const [samples,setSamples]=useState([]);
@@ -78,7 +79,7 @@ function PatientApp({user,onLogout}) {
       h("div",{className:"card"},
         h("div",{className:"section-title"},"Quick Actions"),
         nav.filter(n=>n.id!=="dashboard"&&n.id!=="profile").map(n=>
-          h("div",{key:n.id,className:"row",style:{cursor:"pointer"},onClick:()=>setActive(n.id)},
+          h("div",{key:n.id,className:"row",style:{cursor:"pointer"},onClick:()=>goTo(n.id)},
             h("div",{style:{display:"flex",alignItems:"center",gap:12}},
               h("div",{className:"avatar",style:{fontSize:16}},n.icon),
               h("div",null,
@@ -299,7 +300,7 @@ function PatientApp({user,onLogout}) {
       !loadingR&&myReports.length===0&&h("div",{className:"card",style:{textAlign:"center",padding:40}},
         h("div",{style:{fontSize:44,marginBottom:10}},"📋"),
         h("div",{style:{color:"var(--t2)",fontSize:14,marginBottom:14}},"No reports yet. Book a test first!"),
-        h("button",{onClick:()=>setActive("tests"),className:"btn primary",style:{width:"auto",padding:"9px 22px"}},"Book Tests →")
+        h("button",{onClick:()=>goTo("tests"),className:"btn primary",style:{width:"auto",padding:"9px 22px"}},"Book Tests →")
       ),
       myReports.length>0&&h("div",{className:"card",style:{padding:0,overflow:"visible"}},
         h("div",{className:"table-wrap"},
@@ -443,10 +444,11 @@ function PatientApp({user,onLogout}) {
   }
 
   const pages={dashboard:h(Dashboard),tests:h(Tests),reports:h(Reports),billing:h(Billing),profile:h(Profile)};
-  return h(AppShell,{nav,active,setActive,user,onLogout},pages[active]||pages.dashboard);
+  return h(AppShell,{nav,active,setActive:goTo,user,onLogout},pages[active]||pages.dashboard);
 }
 function AdminApp({user,onLogout}) {
-  const [active,setActive]=useState("dashboard");
+  const [active,setActive]=useState(()=>localStorage.getItem("mp_page_admin")||"dashboard");
+  function goTo(p){localStorage.setItem("mp_page_admin",p);setActive(p);}
   const [samples,setSamples]=useState([]);
   const [bills,setBills]=useState([]);
   const [stats,setStats]=useState({});
@@ -1231,5 +1233,5 @@ function AdminApp({user,onLogout}) {
   }
 
     const pages={dashboard:h(Dashboard),samples:h(Samples),patients:h(Patients),billing:h(Billing),tests:h(ManageTests),users:h(UsersManagement),editrequests:h(EditRequests)};
-  return h(AppShell,{nav,active,setActive,user,onLogout},pages[active]||pages.dashboard);
+  return h(AppShell,{nav,active,setActive:goTo,user,onLogout},pages[active]||pages.dashboard);
 }
